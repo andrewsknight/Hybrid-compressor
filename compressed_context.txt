@@ -1,0 +1,3825 @@
+# CONTEXTO HÍBRIDO DEL PROYECTO
+
+
+INSTRUCCIONES PARA DESCOMPRIMIR ESTE CONTEXTO HÍBRIDO:
+
+Este contexto de proyecto ha sido comprimido utilizando un enfoque híbrido que combina:
+1. Resumen arquitectural del proyecto completo
+2. Código completo de los archivos críticos
+3. Representación vectorial de archivos secundarios
+4. Patrones de código identificados
+
+Para utilizar eficazmente este contexto:
+
+PASO 1: COMPRENDE LA ARQUITECTURA
+- Examina el tipo de proyecto y patrones arquitectónicos
+- Identifica los puntos de entrada principales
+- Analiza la estructura de directorios
+
+PASO 2: ESTUDIA LOS ARCHIVOS CRÍTICOS
+- Los archivos críticos se incluyen completos
+- Estos archivos contienen la lógica central del proyecto
+- Concéntrate primero en estos para entender el funcionamiento principal
+
+PASO 3: UTILIZA LOS VECTORES PARA ARCHIVOS SECUNDARIOS
+- Cada vector captura la semántica de un archivo secundario
+- Utiliza los nombres de archivos y sus vectores para inferir su propósito
+- Las dimensiones de cada vector representan conceptos semánticos
+
+PASO 4: APLICA LOS PATRONES IDENTIFICADOS
+- Los patrones te ayudan a entender las convenciones del proyecto
+- Utilízalos para inferir la estructura de archivos no críticos
+- Comprende las relaciones entre componentes
+
+Al responder preguntas:
+- Basa tus respuestas principalmente en los archivos críticos
+- Complementa tu conocimiento con la información arquitectural
+- Utiliza los vectores para inferir el propósito de archivos secundarios
+- Indica claramente cuando estés haciendo suposiciones basadas en el contexto comprimido
+
+NOTA: Los archivos secundarios están representados como vectores y no contienen el código exacto, por lo que ciertos detalles específicos de implementación pueden no estar disponibles.
+
+
+## 1. ARQUITECTURA DEL PROYECTO
+
+Tipo: React application
+
+Patrones arquitectónicos:
+- Component-based architecture
+- React Context API for state management
+- Custom React Hooks
+- Page-based routing
+- Service/API layer
+
+Puntos de entrada principales:
+- App.tsx
+- locales/index.ts
+- main.tsx
+
+Estructura de directorios principales:
+- components/ (39 archivos)
+- pages/ (10 archivos)
+- hooks/ (3 archivos)
+- locales/ (3 archivos)
+- context/ (2 archivos)
+- lib/ (2 archivos)
+- providers/ (2 archivos)
+- styles/ (2 archivos)
+- types/ (2 archivos)
+- api/ (1 archivos)
+
+## 2. PATRONES IDENTIFICADOS
+
+Convenciones de nomenclatura:
+- PascalCase (React Component): 16 ocurrencias
+- use (React Hook): 5 ocurrencias
+
+Patrones comunes en React:
+- useState Hook: 20 ocurrencias
+- useEffect Hook: 15 ocurrencias
+- Context API: 3 ocurrencias
+- Context Provider: 3 ocurrencias
+
+## 3. ARCHIVOS CRÍTICOS (CÓDIGO COMPLETO)
+
+A continuación se incluye el código completo de los 14 archivos más importantes.
+
+### hooks/useChatLogic.tsx (React TypeScript, 504 líneas)
+
+```react typescript
+import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import { usePrivy } from "@privy-io/react-auth";
+import { Message } from "../types/chat";
+import { useChatStorage } from "./useChatStorage";
+
+// Define message types to match API response format
+interface ApiMessage {
+  id: string;
+  conversationId: string;
+  role: "USER" | "ASSISTANT";
+  content: string;
+  tokens: null;
+  createdAt: string;
+  marketData: null;
+  analysis: null;
+}
+
+interface ApiResponse {
+  success: boolean;
+  data: {
+    conversationId: string;
+    messages: ApiMessage[];
+  };
+}
+
+interface ConversationResponse {
+  success: boolean;
+  data: Array<{
+    id: string;
+    userId: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    lastMessage: string;
+    isArchived: boolean;
+  }>;
+}
+
+export function useChatLogic(chatId: string) {
+  const navigate = useNavigate();
+  const { messages, setMessages, chatList, setChatList } =
+    useChatStorage(chatId);
+  const { getAccessToken } = usePrivy();
+
+  const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(
+    chatId === "new" || messages.length === 0
+  );
+  const [welcomeText, setWelcomeText] = useState("");
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  console.log("useChatLogic initialized with chatId:", chatId);
+  console.log("Initial state:", {
+    messagesCount: messages.length,
+    chatListCount: chatList.length,
+    showWelcome,
+  });
+
+  // Function to convert API message format to our internal format
+  const convertApiMessage = (apiMessage: ApiMessage): Message => {
+    return {
+      id: apiMessage.id,
+      content: apiMessage.content,
+      role: apiMessage.role === "USER" ? "user" : "assistant",
+      timestamp: new Date(apiMessage.createdAt).getTime(),
+      status: "sent",
+    };
+  };
+
+  // Function to fetch messages for an existing chat
+  const fetchChatMessages = async (conversationId: string) => {
+    if (conversationId === "new") return;
+
+    console.log("Fetching messages for chat ID:", conversationId);
+
+    try {
+      const token = await getAccessToken();
+
+      const response = await axios.get<ApiResponse>(
+        `http://localhost:3000/api/chat/conversations/${conversationId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log("API response for messages:", response.data);
+
+      if (response.data.success && response.data.data.messages) {
+        const apiMessages = response.data.data.messages;
+        const convertedMessages = apiMessages.map(convertApiMessage);
+        console.log("Converted messages:", convertedMessages.length);
+        setMessages(convertedMessages);
+        setShowWelcome(false);
+      } else {
+        console.log("No messages found or success is false");
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error("Error fetching chat messages:", error);
+      // Si hay un error, mostramos un mensaje vacío
+      setMessages([]);
+      setShowWelcome(true);
+    }
+  };
+
+  // Fetch user conversations from the API
+  const fetchConversations = async () => {
+    console.log("Fetching conversations list");
+
+    try {
+      const token = await getAccessToken();
+
+      const response = await axios.get<ConversationResponse>(
+        "http://localhost:3000/api/chat/conversations",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log("API response for conversations:", response.data);
+
+      if (response.data.success && response.data.data) {
+        // Convert API format to our chat list format
+        const apiConversations = response.data.data;
+        const formattedChats = apiConversations.map((conv) => ({
+          id: conv.id,
+          title: conv.title || `Chat ${conv.id.slice(0, 8)}...`,
+          lastMessage: conv.lastMessage || "",
+          timestamp: new Date(conv.updatedAt).getTime(),
+          isArchived: conv.isArchived || false,
+        }));
+
+        // Sort by most recent first
+        const sortedChats = formattedChats.sort(
+          (a, b) => b.timestamp - a.timestamp
+        );
+
+        console.log("Formatted chat list:", sortedChats.length);
+
+        // Update chat list
+        setChatList(sortedChats);
+        localStorage.setItem("chat-list", JSON.stringify(sortedChats));
+      } else {
+        console.log("No conversations found or success is false");
+      }
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+    }
+  };
+
+  // Function to send a message
+  const handleSend = async () => {
+    if (!input.trim()) return;
+
+    console.log("Sending message:", input.substring(0, 20) + "...");
+
+    // Hide welcome message when user sends first message
+    if (showWelcome) {
+      setShowWelcome(false);
+    }
+
+    // Guardar el mensaje actual y también los mensajes existentes para no perderlos
+    const currentMessages = [...messages];
+
+    const tempId = Date.now().toString();
+    const newMessage: Message = {
+      id: tempId,
+      content: input,
+      role: "user",
+      timestamp: Date.now(),
+      status: "sending",
+    };
+
+    // Añadir el nuevo mensaje a los existentes
+    setMessages((prev) => [...prev, newMessage]);
+    setInput("");
+    setIsTyping(true);
+
+    try {
+      // Get Privy token
+      const token = await getAccessToken();
+
+      // Call the API with the correct format and token
+      const response = await axios.post<ApiResponse>(
+        "http://localhost:3000/api/chat/message",
+        {
+          message: input,
+          conversationId: chatId !== "new" ? chatId : undefined,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log("Message API response:", response.data);
+
+      if (!response.data.success) {
+        throw new Error("API response indicates failure");
+      }
+
+      // Get conversation ID from the response
+      const serverChatId = response.data.data.conversationId;
+
+      // Update URL if this is a new conversation
+      if (
+        (chatId === "new" || serverChatId !== chatId) &&
+        currentMessages.length === 0
+      ) {
+        console.log("Updating URL to new conversation:", serverChatId);
+        navigate(`/app/chat/${serverChatId}`, { replace: true });
+        updateChatInList(serverChatId, input);
+      } else if (currentMessages.length === 0) {
+        updateChatInList(chatId, input);
+      }
+
+      // SOLUCIÓN: Solo extraer la respuesta más reciente del asistente
+      const apiMessages = response.data.data.messages;
+      let assistantResponse: Message | null = null;
+
+      // Buscar la última respuesta del asistente en los mensajes de la API
+      for (let i = apiMessages.length - 1; i >= 0; i--) {
+        if (apiMessages[i].role === "ASSISTANT") {
+          assistantResponse = convertApiMessage(apiMessages[i]);
+          break;
+        }
+      }
+
+      // Actualizar los mensajes conservando todos los mensajes anteriores
+      if (assistantResponse) {
+        // Actualizar el estado del mensaje del usuario y añadir la respuesta
+        setMessages((prev) => {
+          const updatedMessages = prev.map((msg) =>
+            msg.id === tempId ? { ...msg, status: "sent" as "sent" } : msg
+          );
+          return [...updatedMessages, assistantResponse];
+        });
+      } else {
+        // Si no hay respuesta del asistente, al menos actualizar el estado del mensaje del usuario
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === tempId ? { ...msg, status: "sent" } : msg
+          )
+        );
+      }
+
+      // Update chat title if this is the first message
+      if (currentMessages.length === 0 || currentMessages.length === 1) {
+        updateChatTitle(serverChatId || chatId, input);
+      }
+
+      // Refresh conversation list
+      fetchConversations();
+    } catch (error) {
+      console.error("Error sending message:", error);
+
+      // Error message
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content:
+          "Sorry, an error occurred while processing your message. Please try again.",
+        role: "assistant",
+        timestamp: Date.now(),
+        status: "error",
+      };
+
+      setMessages((prev) => [
+        ...prev.map((msg) =>
+          msg.id === tempId ? { ...msg, status: "error" as "error" } : msg
+        ),
+        errorMessage,
+      ]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  // Update chat in the list with the first message as title
+  const updateChatInList = (chatId: string, firstMessage: string) => {
+    // Create a title based on the first message (limited to 30 characters)
+    const chatTitle =
+      firstMessage.length > 30
+        ? firstMessage.substring(0, 30) + "..."
+        : firstMessage;
+
+    // Check if the chat already exists in the list
+    const existingChatIndex = chatList.findIndex((chat) => chat.id === chatId);
+
+    if (existingChatIndex >= 0) {
+      const updatedList = [...chatList];
+      updatedList[existingChatIndex] = {
+        ...updatedList[existingChatIndex],
+        title: chatTitle,
+        lastMessage: firstMessage,
+        timestamp: Date.now(),
+      };
+      setChatList(updatedList);
+      localStorage.setItem("chat-list", JSON.stringify(updatedList));
+    } else {
+      // Create new chat in the list
+      const newChat = {
+        id: chatId,
+        title: chatTitle,
+        lastMessage: firstMessage,
+        timestamp: Date.now(),
+        isArchived: false,
+      };
+
+      const updatedList = [newChat, ...chatList];
+      setChatList(updatedList);
+      localStorage.setItem("chat-list", JSON.stringify(updatedList));
+    }
+  };
+
+  // Update chat title based on the first message
+  const updateChatTitle = (chatId: string, message: string) => {
+    // Create a title based on the message (limited to 30 characters)
+    const chatTitle =
+      message.length > 30 ? message.substring(0, 30) + "..." : message;
+
+    const updatedList = chatList.map((chat) => {
+      if (chat.id === chatId) {
+        return { ...chat, title: chatTitle };
+      }
+      return chat;
+    });
+
+    setChatList(updatedList);
+    localStorage.setItem("chat-list", JSON.stringify(updatedList));
+  };
+
+  // Key press handling
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // Scroll management
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Create new chat
+  const createNewChat = () => {
+    console.log("Creating new chat");
+    // Limpiar el estado actual
+    setInput("");
+    setMessages([]);
+    setShowWelcome(true);
+    setWelcomeText(""); // Reinicia el texto para que el efecto de escritura se inicie de nuevo
+
+    // Navigate to the special "new" route that will create a new chat when the first message is sent
+    navigate(`/app/chat/new`, { replace: true });
+  };
+
+  // Delete chat
+  // Archivar chat (antes llamado deleteChat)
+  const archiveChat = async (chatId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const currentChatId = chatId;
+
+    console.log("Archiving chat:", chatId);
+
+    try {
+      // Get token for authorization
+      const token = await getAccessToken();
+
+      // Make API call to archive the conversation
+      await axios.delete(
+        `http://localhost:3000/api/chat/conversations/${chatId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Local update regardless of API success
+      const updatedList = chatList.map((chat) =>
+        chat.id === chatId ? { ...chat, isArchived: true } : chat
+      );
+
+      // Filtramos las conversaciones archivadas para la vista
+      const visibleChats = updatedList.filter((chat) => !chat.isArchived);
+
+      setChatList(updatedList);
+      localStorage.setItem("chat-list", JSON.stringify(updatedList));
+
+      // Navigate to a different chat or create a new one if current chat is archived
+      if (chatId === currentChatId) {
+        if (visibleChats.length > 0) {
+          navigate(`/app/chat/${visibleChats[0].id}`);
+        } else {
+          createNewChat();
+        }
+      }
+
+      console.log("Chat archived successfully");
+    } catch (error) {
+      console.error("Error archiving chat:", error);
+
+      // Still update the local state even if the API fails
+      const updatedList = chatList.map((chat) =>
+        chat.id === chatId ? { ...chat, isArchived: true } : chat
+      );
+      const visibleChats = updatedList.filter((chat) => !chat.isArchived);
+
+      setChatList(updatedList);
+      localStorage.setItem("chat-list", JSON.stringify(updatedList));
+
+      if (chatId === currentChatId) {
+        if (visibleChats.length > 0) {
+          navigate(`/app/chat/${visibleChats[0].id}`);
+        } else {
+          createNewChat();
+        }
+      }
+    }
+  };
+
+  // Welcome message typing effect
+  useEffect(() => {
+    if (!showWelcome) return;
+
+    const welcomeMessage =
+      "Welcome to Delphos, your AI assistant. How can I help you today?";
+    const typingSpeed = 50; // ms per character
+    let currentIndex = 0;
+
+    const typingInterval = setInterval(() => {
+      if (currentIndex < welcomeMessage.length) {
+        setWelcomeText(welcomeMessage.substring(0, currentIndex + 1));
+        currentIndex++;
+      } else {
+        clearInterval(typingInterval);
+      }
+    }, typingSpeed);
+
+    return () => clearInterval(typingInterval);
+  }, [showWelcome]);
+
+  // Auto-scroll when new messages arrive
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Fetch conversations when component mounts and when chatId changes
+  useEffect(() => {
+    console.log("Effect triggered for chatId:", chatId);
+
+    // Siempre cargar la lista de conversaciones
+    fetchConversations();
+
+    // Si es un chat existente, siempre cargar sus mensajes (incluso si ya tenemos algunos)
+    if (chatId !== "new") {
+      fetchChatMessages(chatId);
+    } else {
+      console.log("New chat - resetting messages");
+      setMessages([]);
+      setShowWelcome(true);
+      setWelcomeText(""); // Reinicia para el efecto de escritura
+    }
+  }, [chatId]);
+
+  return {
+    // State
+    messages,
+    input,
+    setInput,
+    isTyping,
+    showSidebar,
+    setShowSidebar,
+    showWelcome,
+    welcomeText,
+    chatList,
+
+    // References
+    messagesEndRef,
+    inputRef,
+
+    // Functions
+    handleSend,
+    handleKeyPress,
+    createNewChat,
+    archiveChat,
+  };
+}
+```
+
+### context/auth-context.tsx (React TypeScript, 392 líneas)
+
+```react typescript
+import { createContext, useContext, useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { usePrivy } from "@privy-io/react-auth";
+import axios from "axios";
+
+// Definir el tipo de datos que tendrá el contexto
+interface AuthContextType {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  isNewUser: boolean; // Nuevo flag para indicar usuario nuevo
+  login: (token: string) => void;
+  logout: () => void;
+  userData: any | null;
+  fetchUserData: () => Promise<void>;
+  refreshUserData: () => Promise<void>; // Nueva función para refrescar datos del usuario
+  updateUserProfile: (fullName: string) => Promise<boolean>; // Función para actualizar el perfil
+}
+
+// Duración del token en milisegundos (24 horas)
+const TOKEN_EXPIRATION_TIME = 24 * 60 * 60 * 1000;
+
+// Crear el contexto con valores iniciales
+const AuthContext = createContext<AuthContextType | null>(null);
+
+// Hook personalizado para usar el contexto
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth debe usarse dentro de un AuthProvider");
+  }
+  return context;
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [userData, setUserData] = useState<any | null>(null);
+  const [isNewUser, setIsNewUser] = useState<boolean>(false); // Estado para usuario nuevo
+  const navigate = useNavigate();
+  const location = useLocation();
+  const {
+    logout: privyLogout,
+    getAccessToken,
+    authenticated,
+    ready,
+    user,
+  } = usePrivy();
+
+  // Add a function to get the current Privy token
+  const getToken = async () => {
+    try {
+      // Get the token from Privy
+      const privyToken = await getAccessToken();
+      if (!privyToken) {
+        console.error("No se pudo obtener el token de Privy");
+        return null;
+      }
+      return privyToken;
+    } catch (error) {
+      console.error("Error obteniendo token de Privy:", error);
+      return null;
+    }
+  };
+
+  // Verificar si el token ha expirado
+  const isTokenExpired = (): boolean => {
+    const tokenTimestamp = localStorage.getItem("tokenTimestamp");
+    if (!tokenTimestamp) return true;
+
+    const timestamp = parseInt(tokenTimestamp, 10);
+    const now = Date.now();
+    return now - timestamp > TOKEN_EXPIRATION_TIME;
+  };
+
+  // Función para obtener datos del usuario
+  const fetchUserData = async (): Promise<void> => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        // If no token, logout to reset state
+        await logout();
+        return;
+      }
+
+      const response = await axios.get("http://localhost:3000/api/auth/me", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setUserData(response.data);
+    } catch (error) {
+      console.error("Error al obtener datos del usuario:", error);
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        await logout();
+      }
+    }
+  };
+
+  // Función para refrescar datos del usuario (solo llama a fetchUserData)
+  const refreshUserData = async (): Promise<void> => {
+    await fetchUserData();
+  };
+
+  // Función para actualizar el perfil del usuario después de la bienvenida
+  const updateUserProfile = async (fullName: string): Promise<boolean> => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        console.error("No hay token disponible para actualizar el perfil");
+        return false;
+      }
+
+      const response = await axios.put(
+        "http://localhost:3000/api/auth/welcome-completed",
+        { fullName },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data.success) {
+        // Actualizar datos del usuario en el estado
+        setUserData((prev: any) => ({
+          ...prev,
+          fullName,
+          onboardingCompleted: true,
+        }));
+
+        // Actualizar que ya no es un usuario nuevo
+        setIsNewUser(false);
+        localStorage.removeItem("isNewUser");
+
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("Error al actualizar perfil:", error);
+      return false;
+    }
+  };
+
+  // Verificar estado de autenticación de Privy cuando está listo
+  useEffect(() => {
+    const checkPrivyAuth = async () => {
+      if (ready) {
+        if (authenticated && user) {
+          // Privy está autenticado, verificar nuestro estado
+          const token = localStorage.getItem("authToken");
+
+          if (!token || isTokenExpired()) {
+            // No tenemos token válido pero Privy está autenticado
+            // Necesitamos autenticar con el backend
+            try {
+              const privyId = user.id;
+              const email = user.email?.address;
+              const emailVerified = true;
+
+              const response = await axios.post(
+                "http://localhost:3000/api/auth/login",
+                {
+                  privyId,
+                  email,
+                  emailVerified,
+                }
+              );
+
+              if (response.data.success && response.data.token) {
+                // Guardar token en localStorage junto con timestamp
+                localStorage.setItem("authToken", response.data.token);
+                localStorage.setItem("tokenTimestamp", Date.now().toString());
+
+                // Verificar si es un usuario nuevo
+                if (response.data.isNewUser) {
+                  setIsNewUser(true);
+                  localStorage.setItem("isNewUser", "true");
+                }
+
+                setIsAuthenticated(true);
+
+                // Solo redirigir si estamos en la página de login
+                if (location.pathname === "/login") {
+                  const lastPath =
+                    sessionStorage.getItem("lastPath") || "/app/home";
+                  navigate(lastPath, { replace: true });
+                }
+              }
+            } catch (error) {
+              console.error("Error autenticando con backend:", error);
+            }
+          } else if (!isAuthenticated) {
+            // Tenemos token válido pero el estado no refleja estar autenticado
+            setIsAuthenticated(true);
+
+            // Verificar si hay flag de usuario nuevo en localStorage
+            if (localStorage.getItem("isNewUser") === "true") {
+              setIsNewUser(true);
+            }
+          }
+        } else if (isAuthenticated) {
+          // Privy no está autenticado pero nosotros sí, hacer logout
+          logout();
+        }
+
+        // Actualizar estado de carga
+        setIsLoading(false);
+      }
+    };
+
+    checkPrivyAuth();
+  }, [ready, authenticated, user]);
+
+  // Cargar el estado desde localStorage al iniciar
+  useEffect(() => {
+    const checkAuth = async () => {
+      setIsLoading(true);
+      try {
+        const token = localStorage.getItem("authToken");
+        const lastPath = sessionStorage.getItem("lastPath");
+        const newUserFlag = localStorage.getItem("isNewUser");
+
+        if (token && !isTokenExpired()) {
+          setIsAuthenticated(true);
+
+          // Verificar si es un usuario nuevo
+          if (newUserFlag === "true") {
+            setIsNewUser(true);
+          }
+
+          // Verificar si hay una ruta guardada en sessionStorage
+          if (lastPath && location.pathname === "/login") {
+            navigate(lastPath, { replace: true });
+          }
+        } else if (token) {
+          // Limpiar token expirado
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("tokenTimestamp");
+          localStorage.removeItem("isNewUser");
+          setIsAuthenticated(false);
+          setIsNewUser(false);
+        }
+      } catch (error) {
+        console.error("Error verificando autenticación:", error);
+        setIsAuthenticated(false);
+        setIsNewUser(false);
+      } finally {
+        if (!ready) {
+          // Solo establecer isLoading en false si Privy no está listo
+          // De lo contrario, el efecto de Privy lo hará
+          setIsLoading(false);
+        }
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Sincronizar estado entre pestañas
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === "authToken") {
+        if (event.newValue) {
+          // Token añadido o actualizado en otra pestaña
+          setIsAuthenticated(true);
+
+          // Si estamos en la página de login, redirigir
+          if (location.pathname === "/login") {
+            const lastPath = sessionStorage.getItem("lastPath") || "/app/home";
+            navigate(lastPath, { replace: true });
+          }
+        } else {
+          // Token removido en otra pestaña (logout)
+          setIsAuthenticated(false);
+          setUserData(null);
+          setIsNewUser(false);
+
+          // Si no estamos en login, redirigir
+          if (!location.pathname.includes("/login")) {
+            navigate("/login", { replace: true });
+          }
+        }
+      } else if (event.key === "isNewUser") {
+        setIsNewUser(event.newValue === "true");
+      }
+    };
+
+    // Agregar listener
+    window.addEventListener("storage", handleStorageChange);
+
+    // Limpiar listener
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, [location.pathname, navigate]);
+
+  // Guardar la ruta actual cuando el usuario está autenticado
+  useEffect(() => {
+    if (isAuthenticated && !location.pathname.includes("/login")) {
+      sessionStorage.setItem("lastPath", location.pathname);
+    }
+  }, [isAuthenticated, location.pathname]);
+
+  // Cargar datos del usuario cuando está autenticado
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchUserData();
+    }
+  }, [isAuthenticated]);
+
+  // Función para iniciar sesión
+  const login = (token: string) => {
+    // Guardar token en localStorage junto con timestamp
+    localStorage.setItem("authToken", token);
+    localStorage.setItem("tokenTimestamp", Date.now().toString());
+
+    // IMPORTANTE: No eliminar el flag isNewUser aquí
+    // Verificar si hay flag de usuario nuevo en localStorage
+    const isNewUserFlag = localStorage.getItem("isNewUser");
+    if (isNewUserFlag === "true") {
+      setIsNewUser(true);
+    }
+
+    // Actualizar estado
+    setIsAuthenticated(true);
+
+    // Redirigir a la última ruta o a la página principal
+    const lastPath = sessionStorage.getItem("lastPath") || "/app/home";
+    navigate(lastPath, { replace: true });
+  };
+
+  // Función de logout que devuelve una promesa
+  const logout = async (): Promise<void> => {
+    try {
+      // 1. Limpiar datos de autenticación
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("tokenTimestamp");
+      localStorage.removeItem("isNewUser");
+      sessionStorage.removeItem("lastPath"); // Limpiar también la última ruta
+
+      // 2. Logout de Privy antes de actualizar el estado
+      try {
+        await privyLogout();
+      } catch (privyError) {
+        console.error("Error en logout de Privy:", privyError);
+        // No detener el proceso si falla Privy
+      }
+
+      // 3. Actualizar estado solo después de que Privy haya cerrado sesión
+      setIsAuthenticated(false);
+      setUserData(null); // Limpiar los datos del usuario al hacer logout
+      setIsNewUser(false); // Resetear estado de usuario nuevo
+    } catch (error) {
+      console.error("Error en logout:", error);
+      throw error; // Propagamos el error para manejarlo en el componente
+    }
+  };
+
+  // Verificar expiración del token periódicamente
+  useEffect(() => {
+    if (isAuthenticated) {
+      const checkTokenInterval = setInterval(() => {
+        if (isTokenExpired()) {
+          logout();
+          clearInterval(checkTokenInterval);
+        }
+      }, 60000); // Verificar cada minuto
+
+      return () => clearInterval(checkTokenInterval);
+    }
+  }, [isAuthenticated]);
+
+  return (
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        isLoading,
+        isNewUser,
+        login,
+        logout,
+        userData,
+        fetchUserData,
+        refreshUserData,
+        updateUserProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+```
+
+### components/settings/profileTab.tsx (React TypeScript, 394 líneas)
+
+```react typescript
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Upload,
+  Save,
+  Sparkles,
+  Loader2,
+} from "lucide-react";
+import { useAuth } from "@/context/auth-context";
+import { toast } from "react-toastify";
+import axios from "axios";
+import { getAccessToken, usePrivy } from "@privy-io/react-auth";
+import Select from "react-select";
+import countryList from "react-select-country-list";
+
+interface ProfileFormData {
+  fullName: string;
+  email: string;
+  bio: string;
+  imageUrl: string; // Cambiado de avatar a imageUrl para mantener consistencia con la API
+  country: string;
+}
+
+const ProfileTab = () => {
+  const { userData } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user } = usePrivy();
+  
+  // Estado para el formulario
+  const [profileForm, setProfileForm] = useState<ProfileFormData>({
+    fullName: "",
+    email: "",
+    bio: "",
+    imageUrl: "",
+    country: "",
+  });
+
+  const [avatarPreview, setAvatarPreview] = useState("");
+  
+  // Opciones de países para el selector
+  const countries = useMemo(() => {
+    return countryList()
+      .getData()
+      .map((country) => ({
+        value: country.value,
+        label: (
+          <div className="flex items-center">
+            <img
+              src={`https://flagcdn.com/16x12/${country.value.toLowerCase()}.png`}
+              alt={country.label}
+              className="mr-2"
+            />
+            <span>{country.label}</span>
+          </div>
+        ),
+        originalLabel: country.label,
+      }));
+  }, []);
+
+  // Cargar datos del usuario al iniciar
+  useEffect(() => {
+    if (userData) {
+      setProfileForm({
+        fullName: userData.fullName || "",
+        email: userData.email || "",
+        bio: userData.description || "", // Description en backend, bio en frontend
+        imageUrl: userData.imageUrl || "",
+        country: userData.country || "",
+      });
+      setAvatarPreview(userData.imageUrl || "");
+    }
+  }, [userData]);
+
+  // Manejador de cambios en formulario
+  const handleProfileChange = (e: { target: { name: string; value: string; }; }) => {
+    const { name, value } = e.target;
+    setProfileForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  // Manejador para el cambio del país
+  const handleCountryChange = (selectedOption: { value: string; } | null) => {
+    setProfileForm((prev) => ({
+      ...prev,
+      country: selectedOption ? selectedOption.value : "",
+    }));
+  };
+
+  // Manejador de cambios de avatar con validaciones
+  const handleAvatarChange = (e: { target: { files: FileList | null; }; }) => {
+    const files = e.target.files;
+    if (files && files[0]) {
+      const file = files[0];
+      
+      // Validar tamaño (máximo 2MB como indica la UI)
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("La imagen es demasiado grande. El tamaño máximo es de 2MB.");
+        return;
+      }
+
+      // Validar tipo de archivo
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
+      if (!validTypes.includes(file.type)) {
+        toast.error("Formato de imagen no válido. Usa JPG, PNG o GIF.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (reader.result) {
+          // Para la vista previa
+          setAvatarPreview(reader.result.toString());
+          
+          // Para el formulario que se enviará al backend
+          setProfileForm((prev) => ({
+            ...prev,
+            imageUrl: reader.result ? reader.result.toString() : "",
+          }));
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Encontrar el país seleccionado para el Select
+  const selectedCountry = useMemo(() => {
+    if (!profileForm.country) return null;
+    return countries.find(country => country.value === profileForm.country);
+  }, [profileForm.country, countries]);
+
+  // Manejador de envío del formulario
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      // Preparar los datos para enviar al endpoint según su estructura
+      const updateData = {
+        fullName: profileForm.fullName,
+        imageUrl: profileForm.imageUrl, // Ya no usamos avatar sino imageUrl
+        description: profileForm.bio,    // Bio en frontend, description en backend
+        country: profileForm.country,
+      };
+
+      // Realizar la petición al endpoint con axios con token de autenticación
+      const token = await getAccessToken();
+
+      const response = await axios.put(
+        "http://localhost:3000/api/users/me/profile",
+        updateData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const data = response.data;
+
+      if (data.success) {
+        // Guardar los datos en localStorage como respaldo
+        localStorage.setItem('userProfileData', JSON.stringify({
+          fullName: data.user.fullName,
+          imageUrl: data.user.imageUrl,
+          description: data.user.description,
+          country: data.user.country,
+          email: profileForm.email // Mantener el email ya que no cambia
+        }));
+        
+        // Mostrar mensaje de éxito
+        toast.success("Tu información ha sido actualizada correctamente");
+        
+        // Recargar la página después de un breve retraso
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        throw new Error(data.error || "Error al actualizar el perfil");
+      }
+    } catch (error: any) {
+      console.error("Error al actualizar perfil:", error);
+      toast.error(
+        error.message || "Ha ocurrido un error al actualizar el perfil"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 gradient-border">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-[hsl(252deg_100%_71%/90%)]" />
+          Información del Perfil
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Label
+                htmlFor="avatar"
+                className="text-base font-medium"
+              >
+                Foto de Perfil
+              </Label>
+              <div className="flex items-center gap-6">
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-[hsl(252deg_100%_71%/90%)] rounded-full blur opacity-75 group-hover:opacity-100 transition duration-500"></div>
+                  <Avatar className="w-24 h-24 border-4 border-background relative">
+                    <AvatarImage src={avatarPreview} alt="Avatar" />
+                    <AvatarFallback>
+                      {profileForm.fullName.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                <div className="flex-1">
+                  <div className="relative">
+                    <Input
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      onChange={handleAvatarChange}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full flex items-center justify-center gap-2"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Subir nueva imagen
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    JPG, PNG o GIF. Máximo 2MB.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label
+                  htmlFor="fullName"
+                  className="text-base font-medium"
+                >
+                  Nombre completo
+                </Label>
+                <Input
+                  id="fullName"
+                  name="fullName"
+                  value={profileForm.fullName}
+                  onChange={handleProfileChange}
+                  placeholder="Tu nombre"
+                  className="text-base p-6"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label
+                  htmlFor="email"
+                  className="text-base font-medium"
+                >
+                  Correo electrónico
+                </Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={profileForm.email}
+                  onChange={handleProfileChange}
+                  placeholder="tu@email.com"
+                  className="text-base p-6"
+                  disabled
+                />
+                <p className="text-sm text-muted-foreground">
+                  El correo no se puede cambiar.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bio" className="text-base font-medium">
+                Biografía
+              </Label>
+              <textarea
+                id="bio"
+                name="bio"
+                value={profileForm.bio}
+                onChange={handleProfileChange}
+                placeholder="Cuéntanos sobre ti..."
+                className="w-full min-h-24 p-4 rounded-md border border-input bg-transparent text-base"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label
+                htmlFor="country"
+                className="text-base font-medium"
+              >
+                País
+              </Label>
+              <Select
+                id="country"
+                options={countries}
+                value={selectedCountry}
+                onChange={handleCountryChange}
+                classNamePrefix="react-select"
+                placeholder="Selecciona tu país"
+                formatOptionLabel={(option: any) => option.label}
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    backgroundColor: "hsl(0 0% 3.9%)",
+                    color: "white",
+                    borderColor: "rgb(75, 85, 99)",
+                    borderRadius: "0.5rem",
+                    padding: "0.5rem",
+                    "&:hover": {
+                      backgroundColor: "hsl(0 0% 10%)",
+                    },
+                  }),
+                  menu: (base) => ({
+                    ...base,
+                    backgroundColor: "hsl(0 0% 3.9%)",
+                  }),
+                  input: (base) => ({
+                    ...base,
+                    color: "white",
+                  }),
+                  placeholder: (base) => ({
+                    ...base,
+                    color: "rgb(156, 163, 175)",
+                  }),
+                  singleValue: (base) => ({
+                    ...base,
+                    color: "white",
+                  }),
+                  option: (base, { isFocused }) => ({
+                    ...base,
+                    backgroundColor: isFocused
+                      ? "hsl(0 0% 10%)"
+                      : "hsl(0 0% 3.9%)",
+                    color: "white",
+                    "&:hover": {
+                      backgroundColor: "hsl(0 0% 10%)",
+                    },
+                  }),
+                }}
+              />
+            </div>
+          </div>
+
+          <CardFooter className="flex justify-end px-0 pt-6">
+            <Button
+              type="submit"
+              className="text-lg px-6 py-5 bg-[hsl(252deg_100%_71%/90%)] text-white hover:opacity-90"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-5 w-5 mr-2" />
+                  Guardar cambios
+                </>
+              )}
+            </Button>
+          </CardFooter>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ProfileTab;
+```
+
+### components/chat/ChatInterface.tsx (React TypeScript, 334 líneas)
+
+```react typescript
+import { useState, useEffect, useRef } from "react";
+import { SendHorizontal, User, Bot, Loader2 } from "lucide-react";
+import { Button } from "../ui/button";
+import { useChatLogic } from "../../hooks/useChatLogic";
+import { SideChat } from "../ui/side";
+import { useAuth } from "@/context/auth-context";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { formatChatTitle } from "../../utils/chatUtils";
+
+interface ChatInterfaceProps {
+  id: string;
+}
+
+// Componente para mostrar un mensaje con efecto de escritura
+const TypingMessage = ({ content, onComplete }: { content: string; onComplete: () => void }) => {
+  const [visibleText, setVisibleText] = useState("");
+  const [isComplete, setIsComplete] = useState(false);
+  
+  useEffect(() => {
+    if (isComplete) return;
+    
+    let currentIndex = 0;
+    const typingSpeed = 5; // ms por caracter
+    
+    const typingInterval = setInterval(() => {
+      if (currentIndex < content.length) {
+        setVisibleText(content.substring(0, currentIndex + 1));
+        currentIndex++;
+      } else {
+        clearInterval(typingInterval);
+        setIsComplete(true);
+        onComplete();
+      }
+    }, typingSpeed);
+    
+    return () => clearInterval(typingInterval);
+  }, [content, isComplete, onComplete]);
+  
+  return visibleText;
+};
+
+export default function ChatInterface({ id }: ChatInterfaceProps) {
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
+  const [showThinking, setShowThinking] = useState(false);
+  const [lastMessageId, setLastMessageId] = useState<string | null>(null);
+  
+  // Obtener los datos del usuario del contexto de autenticación
+  const { userData } = useAuth();
+  
+  // Usar el hook de lógica de chat
+  const {
+    messages,
+    input,
+    setInput,
+    isTyping,
+    showSidebar,
+    setShowSidebar,
+    showWelcome,
+    welcomeText,
+    chatList,
+    messagesEndRef,
+    inputRef,
+    handleSend,
+    handleKeyPress,
+    createNewChat,
+    archiveChat
+  } = useChatLogic(id);
+
+  // Extract chat title from the chat list
+  const currentChat = chatList.find(chat => chat.id === id);
+  const chatTitle = currentChat?.title || `Chat ${id.slice(0, 8)}...`;
+  
+  const isFirstLoad = useRef(true);
+  
+  // Efecto para la carga inicial del componente
+  useEffect(() => {
+    console.log("ChatInterface mounted with id:", id);
+    
+    const timer = setTimeout(() => {
+      setInitialLoading(false);
+      console.log("Initial loading complete");
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [id]);
+  
+  // Inicializar el estado de lastMessageId con el ID del último mensaje al cargar
+  useEffect(() => {
+    if (!initialLoading && messages.length > 0 && isFirstLoad.current) {
+      const assistantMessages = messages.filter(msg => msg.role === "assistant");
+      if (assistantMessages.length > 0) {
+        const lastAssistantMsg = assistantMessages[assistantMessages.length - 1];
+        setLastMessageId(lastAssistantMsg.id);
+        console.log("Primera carga: registrando último mensaje sin animar:", lastAssistantMsg.id);
+      }
+      // Marcar que ya no es la primera carga
+      isFirstLoad.current = false;
+    }
+  }, [initialLoading, messages]);
+  
+  // Referencia para almacenar el estado previo de isTyping
+  const prevIsTypingRef = useRef(false);
+  
+  useEffect(() => {
+    // No hacer nada durante la carga inicial
+    if (initialLoading) return;
+    
+    if (!isTyping && prevIsTypingRef.current && messages.length > 0) {
+      const assistantMessages = messages.filter(msg => msg.role === "assistant");
+      
+      if (assistantMessages.length > 0) {
+        const lastAssistantMsg = assistantMessages[assistantMessages.length - 1];
+        
+        // Solo animar si es un mensaje nuevo (diferente al último registrado)
+        // Y el estado isTyping acaba de cambiar de true a false (indicando una respuesta nueva)
+        if (lastAssistantMsg.id !== lastMessageId) {
+          console.log("Nuevo mensaje detectado tras respuesta:", lastAssistantMsg.id);
+          setLastMessageId(lastAssistantMsg.id);
+          
+          // Ocultar el indicador de "pensando" y mostrar el efecto de escritura
+          setShowThinking(false);
+          setTypingMessageId(lastAssistantMsg.id);
+        }
+      }
+    }
+    
+    // Actualizar la referencia del estado previo
+    prevIsTypingRef.current = isTyping;
+  }, [messages, isTyping, initialLoading, lastMessageId]);
+  
+  // Efecto para mostrar el indicador de "pensando" cuando isTyping cambia
+  useEffect(() => {
+    if (isTyping) {
+      // Cuando comienza a escribir, mostrar el indicador de "pensando"
+      setShowThinking(true);
+      // Asegurarse de que no haya ningún mensaje con efecto de escritura
+      setTypingMessageId(null);
+    }
+  }, [isTyping]);
+  
+  // Este efecto se ejecuta una vez al principio para garantizar que no se anime nada al cargar
+  useEffect(() => {
+    setTypingMessageId(null);
+  }, []);
+  
+  const handleTypingComplete = () => {
+    setTypingMessageId(null);
+  };
+
+  if (initialLoading) {
+    return (
+      <div className="flex h-full items-center justify-center bg-solana-dark">
+        <div className="text-center">
+          <Loader2 className="h-10 w-10 animate-spin text-white mx-auto mb-4" />
+          <p className="text-white">Cargando chat...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex">
+      {/* Sidebar */}
+      <SideChat 
+        showSidebar={showSidebar}
+        chatList={chatList}
+        createNewChat={createNewChat}
+        deleteChat={archiveChat}
+        currentChatId={id}
+      />
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col bg-gradient-to-br from-solana-purple/5 via-primary/5 to-solana-blue/5">
+        {/* Chat Header - Sticky para que permanezca visible */}
+        <div className="sticky top-0 z-40 border-b border-gray-200/20 bg-solana-dark/95 backdrop-blur supports-[backdrop-filter]:bg-solana-dark/60">
+          <div className="flex h-16 w-full items-center justify-between px-8">
+            <div className="flex items-center">
+              <button 
+                onClick={() => setShowSidebar(!showSidebar)}
+                className="mr-4 p-2 rounded-full hover:bg-white/10"
+              >
+                <div className="flex flex-col space-y-1">
+                  <div className="w-4 h-0.5 bg-white"></div>
+                  <div className="w-4 h-0.5 bg-white"></div>
+                  <div className="w-4 h-0.5 bg-white"></div>
+                </div>
+              </button>
+              <h1 className="text-xl font-semibold text-white truncate max-w-md">
+                {formatChatTitle(chatTitle)}
+              </h1>
+            </div>
+            <div className="flex items-center gap-2">
+              {isTyping && (
+                <span className="flex items-center gap-2 text-sm text-solana-green">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  AI is typing...
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Chat Messages - Ya no tiene overflow-y-auto, forma parte del scroll global */}
+        <div className="flex-1 p-4">
+          <div className="mx-auto max-w-4xl space-y-6">
+            {showWelcome && (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center space-y-6">
+                  <img src="/logoDel.png" alt="Delphos Logo" className="h-24 w-24 mx-auto" />
+                  <p className="text-lg text-white">{welcomeText}</p>
+                </div>
+              </div>
+            )}
+            
+            {messages.length > 0 ? (
+              <>
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex gap-4 ${message.role === "user" ? "flex-row-reverse" : ""}`}
+                  >
+                    {message.role === "user" ? (
+                      // Avatar del usuario personalizado
+                      <Avatar className="h-8 w-8 shrink-0 bg-primary">
+                        {userData?.imageUrl ? (
+                          <AvatarImage src={userData.imageUrl} alt="User avatar" />
+                        ) : (
+                          <AvatarFallback className="bg-primary">
+                            <User className="h-5 w-5 text-white" />
+                          </AvatarFallback>
+                        )}
+                      </Avatar>
+                    ) : (
+                      // Avatar del bot (se mantiene igual)
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-solana-purple">
+                        <Bot className="h-5 w-5 text-white" />
+                      </div>
+                    )}
+                    <div
+                      className={`relative flex max-w-[80%] flex-col gap-1 ${
+                        message.role === "user" ? "items-end" : "items-start"
+                      }`}
+                    >
+                      <div
+                        className={`rounded-2xl px-4 py-2 ${
+                          message.role === "user"
+                            ? "bg-primary text-white"
+                            : "bg-solana-dark text-white"
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap text-sm">
+                          {typingMessageId === message.id ? (
+                            <TypingMessage 
+                              content={message.content} 
+                              onComplete={handleTypingComplete} 
+                            />
+                          ) : (
+                            message.content
+                          )}
+                        </p>
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {new Date(message.timestamp).toLocaleTimeString()}
+                        {message.status === "sending" && " • Sending..."}
+                        {message.status === "error" && " • Error"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Mensaje de "Pensando..." - Solo mostrar si está pensando Y no hay un mensaje siendo animado */}
+                {showThinking && !typingMessageId && (
+                  <div className="flex gap-4">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-solana-purple">
+                      <Bot className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="relative flex max-w-[80%] flex-col gap-1 items-start">
+                      <div className="rounded-2xl px-4 py-2 bg-solana-dark text-white">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                          <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                          <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '600ms' }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              !showWelcome && (
+                <div className="flex items-center justify-center h-64">
+                  <p className="text-gray-400">No hay mensajes en esta conversación</p>
+                </div>
+              )
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Chat Input - Sticky en la parte inferior */}
+        <div className="sticky bottom-0 border-t border-gray-200/20 bg-solana-dark/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-solana-dark/60">
+          <div className="mx-auto max-w-4xl">
+            <div className="flex gap-4">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder="Type your message..."
+                rows={1}
+                className="flex-1 resize-none rounded-xl border border-gray-200/20 bg-white/10 px-4 py-3 text-white placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+                style={{
+                  minHeight: "46px",
+                  maxHeight: "200px",
+                }}
+              />
+              <Button
+                onClick={handleSend}
+                disabled={!input.trim() || isTyping}
+                className="flex items-center justify-center rounded-xl bg-primary px-6 py-3 text-white transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:hover:bg-primary"
+              >
+                <SendHorizontal className="h-5 w-5" />
+              </Button>
+            </div>
+            <p className="mt-2 text-center text-xs text-gray-400">
+              Press Enter to send, Shift + Enter for new line
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+### components/home/home-content.tsx (React TypeScript, 223 líneas)
+
+```react typescript
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+  import {
+    MessageSquare,
+    Wallet,
+    History,
+    Settings,
+    Crown,
+    ChevronRight,
+    Sparkles,
+    Globe,
+    Info,
+  } from "lucide-react";
+  import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+  import { Button } from "@/components/ui/button";
+  import { Badge } from "@/components/ui/badge";
+  import { ChatDemo } from "../ui/ia-chat-demo";
+  import { useAuth } from "@/context/auth-context"; // Importar el hook de autenticación
+  import { Link } from "react-router-dom"; // Asumiendo que usas react-router
+
+  export function HomeContent() {
+    const { userData } = useAuth();
+
+    // Datos por defecto (en caso de que userData no esté disponible)
+    const defaultUserData = {
+      name: "Usuario",
+      email: "",
+      avatar: "",
+      description: "",
+      country: "",
+      plan: "Básico",
+      joinDate: "Nuevo miembro",
+      walletBalance: "0 SOL",
+      totalTrades: 0,
+      successRate: "0%",
+    };
+
+    // Combinar los datos del usuario con los valores por defecto
+    const user = {
+      name: userData?.fullName || defaultUserData.name,
+      email: userData?.email || defaultUserData.email,
+      avatar: userData?.imageUrl || defaultUserData.avatar, // Usar imageUrl en lugar de avatar
+      description: userData?.description || defaultUserData.description,
+      country: userData?.country || defaultUserData.country,
+      plan: userData?.plan || defaultUserData.plan,
+      joinDate: userData?.createdAt
+        ? `Miembro desde ${new Date(userData.createdAt).toLocaleDateString("es-ES", { month: "short", year: "numeric" })}`
+        : defaultUserData.joinDate,
+      walletBalance: userData?.walletBalance || defaultUserData.walletBalance,
+      totalTrades: userData?.totalTrades || defaultUserData.totalTrades,
+      successRate: userData?.successRate || defaultUserData.successRate,
+    };
+
+    const features = [
+      {
+        icon: Wallet,
+        title: "Wallet Overview",
+        description: "Manage your Solana assets and transactions",
+        link: "/wallet",
+      },
+      {
+        icon: MessageSquare,
+        title: "AI Trading Assistant",
+        description: "Get real-time Solana trading insights",
+        link: "/app/chat/new",
+      },
+      {
+        icon: History,
+        title: "Trading History",
+        description: "View your past trades and analytics",
+        link: "/history",
+      },
+      {
+        icon: Settings,
+        title: "Trading Settings",
+        description: "Configure your trading preferences",
+        link: "/app/settings",
+      },
+    ];
+
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Profile Header */}
+        <div className="border-b bg-card/50 backdrop-blur-sm p-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-start gap-8 flex-col md:flex-row">
+              <div className="relative group">
+                <div className="absolute inset-0 bg-[hsl(252deg_100%_71%/90%)] rounded-full blur opacity-75 group-hover:opacity-100 transition duration-500"></div>
+                <Avatar className="w-32 h-32 border-4 border-background relative">
+                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+              </div>
+
+              <div className="flex-1 space-y-4">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-3xl font-bold">{user.name}</h1>
+                  <Badge
+                    variant="secondary"
+                    className="flex items-center gap-1 text-lg py-1.5"
+                  >
+                    <Crown className="w-4 h-4 text-yellow-500" />
+                    {user.plan} Plan
+                  </Badge>
+                </div>
+
+                <p className="text-lg text-muted-foreground">{user.email}</p>
+
+                {user.country && (
+                  <p className="text-md flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary" />
+                    <span className="mr-1">{user.country}</span>
+                    {user.country && (
+                      <img
+                        src={`https://flagcdn.com/16x12/${user.country.toLowerCase()}.png`}
+                        alt={`Bandera de ${user.country}`}
+                        width="16"
+                        height="12"
+                        className="inline-block"
+                      />
+                    )}
+                  </p>
+                )}
+
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  {user.joinDate}
+                </p>
+
+                {user.description && (
+                  <div className="mt-2 p-3 bg-muted/50 rounded-lg max-w-2xl">
+                    <p className="text-md flex items-start gap-2">
+                      <Info className="w-4 h-4 text-primary mt-1 flex-shrink-0" />
+                      <span className="italic">{user.description}</span>
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-4 pt-2">
+                  <Link to="/app/settings">
+                    <Button
+                      variant="outline"
+                      className="text-lg px-6 py-5 gradient-border"
+                    >
+                      Edit Profile
+                    </Button>
+                  </Link>
+                  <Link to="/app/upgrade-plan">
+                    <Button className="text-lg color-te px-6 py-5 bg-[hsl(252deg_100%_71%/90%)] text-white hover:opacity-90">
+                      Upgrade Plan
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              <Card className="w-full md:w-auto shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-3 gap-8 text-center">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Balance
+                      </p>
+                      <p className="text-2xl font-bold text-[hsl(252deg_100%_71%/90%)]">
+                        {user.walletBalance}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Trades
+                      </p>
+                      <p className="text-2xl font-bold">{user.totalTrades}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Success
+                      </p>
+                      <p className="text-2xl font-bold text-[hsl(252deg_100%_71%/90%)]">
+                        {user.successRate}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-8 bg-gradient-to-b from-background to-background/50">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid gap-6 md:grid-cols-2">
+              {features.map((feature) => (
+                <Link to={feature.link} key={feature.title} className="block">
+                  <Card className="group cursor-pointer hover-scale gradient-border overflow-hidden">
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300 bg-[hsl(252deg_100%_71%/90%)]"></div>
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between text-xl">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-[hsl(252deg_100%_71%/90%)] text-white">
+                            <feature.icon className="h-6 w-6" />
+                          </div>
+                          {feature.title}
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-1" />
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-muted-foreground text-lg">
+                        {feature.description}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+            <div className="mt-12">
+              <h2 className="text-2xl font-bold mb-4">
+                AI Trading Assistant Demo
+              </h2>
+              <ChatDemo />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+```
+
+### components/WelcomeModal.tsx (React TypeScript, 260 líneas)
+
+```react typescript
+import { useState } from 'react';
+import { ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import ParticleBackground from '../components/particlesBackground';
+import { useAuth } from '@/context/auth-context'; // Importar el hook de autenticación
+
+interface WelcomeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
+  const [step, setStep] = useState(1);
+  const [fullName, setFullName] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  
+  // Usar el contexto de autenticación
+  const { updateUserProfile, refreshUserData } = useAuth();
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!fullName.trim()) {
+      setError('Por favor, introduce tu nombre');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setError('');
+    
+    try {
+      const success = await updateUserProfile(fullName);
+      
+      if (success) {
+        await refreshUserData();
+        onClose();
+      } else {
+        setError('No se pudo actualizar tu perfil, por favor intenta de nuevo');
+      }
+    } catch (err) {
+      setError('Error de conexión, por favor intenta de nuevo');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Container animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1,
+      transition: { 
+        duration: 0.4,
+        when: "beforeChildren",
+        staggerChildren: 0.05
+      }
+    },
+    exit: { 
+      opacity: 0,
+      transition: { duration: 0.2, when: "afterChildren" }
+    }
+  };
+
+  // Animation variants for the title text characters
+  const letterVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: {
+        type: "spring",
+        damping: 12,
+        stiffness: 100
+      }
+    }
+  };
+
+  // Animation variants for paragraph text
+  const paragraphVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: {
+        delay: 0.2,
+        duration: 0.6
+      }
+    }
+  };
+
+  // Animation variants for buttons
+  const buttonVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: {
+        delay: 0.8,
+        duration: 0.4
+      }
+    },
+    hover: {
+      scale: 1.05,
+      transition: {
+        duration: 0.2
+      }
+    }
+  };
+
+  // Function to convert text to animated letters
+  const AnimatedText: React.FC<{ text: string; className?: string }> = ({ text, className }) => {
+    return (
+      <motion.h1 
+        className={className}
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {text.split("").map((char, index) => (
+          <motion.span
+            key={`${char}-${index}`}
+            variants={letterVariants}
+            style={{ display: 'inline-block' }}
+          >
+            {char === " " ? "\u00A0" : char}
+          </motion.span>
+        ))}
+      </motion.h1>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Particle Background Component */}
+      <ParticleBackground 
+        count={250} 
+        color="#a855f7" 
+        backgroundColor="#000000"
+        linkColor="rgba(168, 85, 247, 0.2)"
+        speed={0.3}
+      />
+      
+      <AnimatePresence mode="wait">
+        {step === 1 ? (
+          <motion.div
+            key="welcome"
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            variants={containerVariants}
+            className="text-center text-white p-10 relative z-10 max-w-4xl w-full"
+          >
+            <div className="mb-12">
+              <motion.div
+                variants={letterVariants}
+                className="mx-auto mb-8 flex justify-center"
+              >
+                <img src="/logoDel.png" alt="Delphos Logo" className="w-20 h-20" />
+              </motion.div>
+              
+              <AnimatedText
+                text="¡Bienvenido a Delphos!"
+                className="text-5xl md:text-6xl font-bold mb-8 whitespace-nowrap"
+              />
+              
+              <motion.p
+                variants={paragraphVariants}
+                className="text-2xl text-purple-200 mb-12"
+              >
+                Tu viaje hacia el trading inteligente comienza aquí
+              </motion.p>
+            </div>
+            
+            <motion.button
+              variants={buttonVariants}
+              whileHover="hover"
+              className="bg-white text-purple-900 px-10 py-4 rounded-full text-xl font-semibold flex items-center gap-3 mx-auto hover:bg-purple-100 transition-colors"
+              onClick={() => setStep(2)}
+            >
+              Continuar
+              <ArrowRight className="w-6 h-6" />
+            </motion.button>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="name-form"
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            variants={containerVariants}
+            className="text-center text-white p-10 max-w-3xl w-full mx-4 relative z-10"
+          >
+            <div className="mb-12">
+              <div className="mx-auto mb-8">
+                <img src="/logoDel.png" alt="Delphos Logo" className="w-20 h-20 mx-auto" />
+              </div>
+              
+              <h2 className="text-4xl md:text-5xl font-bold mb-6 whitespace-nowrap">
+                ¿Cómo te gustaría que te llamemos?
+              </h2>
+              
+              <p className="text-2xl text-purple-200 mb-10">
+                Personaliza tu experiencia con nosotros
+              </p>
+            </div>
+
+            <motion.form 
+              variants={containerVariants}
+              onSubmit={handleSubmit} 
+              className="max-w-lg mx-auto"
+            >
+              <motion.div 
+                variants={buttonVariants}
+                className="mb-8"
+              >
+                <input
+                  type="text"
+                  className="w-full px-6 py-4 rounded-full bg-white/10 border-2 border-purple-300/30 focus:border-purple-300 focus:outline-none text-xl text-white placeholder-purple-200"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Tu nombre"
+                  required
+                  autoFocus
+                />
+                {error && (
+                  <p className="mt-3 text-red-300 text-lg">{error}</p>
+                )}
+              </motion.div>
+
+              <motion.div 
+                variants={buttonVariants}
+                className="flex gap-6"
+              >
+                <motion.button
+                  whileHover="hover"
+                  type="button"
+                  className="flex-1 px-8 py-4 rounded-full border-2 border-purple-300 text-xl text-purple-200 font-semibold hover:bg-white/5 transition-colors"
+                  onClick={() => setStep(1)}
+                >
+                  Atrás
+                </motion.button>
+                <motion.button
+                  whileHover="hover"
+                  type="submit"
+                  className="flex-1 px-8 py-4 rounded-full bg-white text-xl text-purple-900 font-semibold hover:bg-purple-100 transition-colors disabled:opacity-70"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Guardando...' : 'Comenzar'}
+                </motion.button>
+              </motion.div>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+```
+
+### components/ui/ia-chat-demo.tsx (React TypeScript, 179 líneas)
+
+```react typescript
+import { useState, useEffect, useRef } from 'react';
+import { Card } from '@/components/ui/card';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/context/auth-context'; 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; 
+import { User } from "lucide-react"; 
+
+interface Message {
+  type: 'bot' | 'user';
+  content: string;
+}
+
+const demoMessages: Message[] = [
+  { type: 'bot', content: "Welcome to Delphos! Your AI-powered Solana trading assistant." },
+  { type: 'user', content: "What is Delphos?" },
+  { type: 'bot', content: "Delphos is an AI oracle that gathers and verifies market insights for Solana." },
+  { type: 'user', content: "How does it verify information?" },
+  { type: 'bot', content: "Delphos cross-checks data from reliable sources before adding it to the blockchain." },
+  { type: 'user', content: "Can I use it for real-time trading?" },
+  { type: 'bot', content: "Yes! Delphos provides actionable trading insights based on market trends." },
+  { type: 'user', content: "How do I access premium features?" },
+  { type: 'bot', content: "You can unlock premium insights using Delphos tokens." }
+];
+
+export function ChatDemo() {
+  const { userData } = useAuth();
+  const isMounted = useRef(true);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [demoCompleted, setDemoCompleted] = useState(false);
+  const [demoIndex, setDemoIndex] = useState(0);
+  
+  const resetDemo = () => {
+    setMessages([]);
+    setDemoIndex(0);
+    setDemoCompleted(false);
+    setIsTyping(false);
+  };
+  
+  useEffect(() => {
+    isMounted.current = true;
+    if (demoIndex < demoMessages.length && !demoCompleted) {
+
+      setIsTyping(true);
+      const typingTimeout = setTimeout(() => {
+        if (isMounted.current) {
+          setIsTyping(false);
+          setMessages(prev => [...prev, demoMessages[demoIndex]]);
+          setDemoIndex(prev => prev + 1);
+        }
+      }, 2000);
+      
+      return () => {
+        clearTimeout(typingTimeout);
+      };
+    } 
+
+    else if (demoIndex >= demoMessages.length && !demoCompleted) {
+      const completeTimeout = setTimeout(() => {
+        if (isMounted.current) {
+          setDemoCompleted(true);
+        }
+      }, 4000);
+      
+      return () => {
+        clearTimeout(completeTimeout);
+      };
+    }
+    return () => {};
+  }, [demoIndex, demoCompleted]);
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  return (
+    <div className="relative w-full h-full">
+      <Card className="w-full overflow-hidden bg-card/50 backdrop-blur-sm relative z-10">
+        <div className="p-4 border-b bg-[hsl(252deg_100%_71%)] text-white">
+          <h3 className="text-lg font-semibold">Live Demo: AI Trading Assistant</h3>
+        </div>
+        
+        <div className="p-6 space-y-4 min-h-[400px]">
+          <AnimatePresence>
+            {messages.map((message, index) => (
+              <motion.div
+                key={`message-${index}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.5 }}
+                className={`flex items-start gap-3 ${message.type === 'user' ? 'flex-row-reverse' : ''}`}
+              >
+                {message.type === 'user' ? (
+                  <Avatar className="w-8 h-8 rounded-full">
+                    {userData?.imageUrl ? (
+                      <AvatarImage src={userData.imageUrl} alt="User avatar" />
+                    ) : (
+                      <AvatarFallback className="bg-primary text-white">
+                        <User className="h-5 w-5" />
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                ) : (
+                  <img
+                    src="/logoDel.png"
+                    alt="Bot Avatar" 
+                    className="w-8 h-8 rounded-full"
+                  />
+                )}
+                <div className={`max-w-[80%] rounded-2xl p-4 ${message.type === 'user' ? 'bg-[hsl(252deg_100%_71%)] text-white' : 'bg-muted'}`}>
+                  <p className="whitespace-pre-line">{message.content}</p>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          
+          <AnimatePresence>
+            {isTyping && (
+              <motion.div
+                key="typing"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-start gap-3"
+              >
+                <img src="/logoDel.png" alt="Avatar" className="w-8 h-8 rounded-full" />
+                <div className="bg-muted rounded-2xl p-4">
+                  <div className="flex gap-2">
+                    <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce"></span>
+                    <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                    <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </Card>
+      {demoCompleted && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black opacity-90 z-20"></div>
+          <div className="relative z-30 flex flex-col items-center max-w-sm mx-auto text-center px-6">
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.98 }}
+              className="bg-[hsl(252deg_100%_71%)] text-white px-8 py-4 rounded-xl shadow-lg cursor-pointer font-bold text-xl w-full"
+              onClick={() => window.location.href = "/app/chat/new"} 
+            >
+              Start Real Conversation
+            </motion.button>      
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="text-white mt-4"
+            >
+              Experience the full power of our AI trading assistant with real-time insights and personalized recommendations.
+            </motion.p>
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              whileHover={{ scale: 1.05 }}
+              className="mt-6 text-white/80 underline text-sm"
+              onClick={resetDemo}
+            >
+              Watch demo again
+            </motion.button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### components/particlesBackground.tsx (React TypeScript, 217 líneas)
+
+```react typescript
+import { useState, useEffect } from 'react';
+
+interface ParticleProps {
+  count?: number;
+  color?: string;
+  linkColor?: string;
+  backgroundColor?: string;
+  minSize?: number;
+  maxSize?: number;
+  speed?: number;
+}
+
+const ParticleBackground = ({
+  count = 70,
+  color = '#a855f7', // Purple color
+  linkColor = 'rgba(168, 85, 247, 0.2)', // Light purple for links
+  backgroundColor = '#000000', // Black background
+  minSize = 1,
+  maxSize = 3,
+  speed = 0.3
+}: ParticleProps) => {
+  interface Particle {
+    x: number;
+    y: number;
+    radius: number;
+    speedX: number;
+    speedY: number;
+    opacity: number;
+  }
+  
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [mousePosition, setMousePosition] = useState({ x: null, y: null });
+
+  // Initialize particles
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+
+      // Create initial particles
+      const initialParticles = Array.from({ length: count }, () => ({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        radius: Math.random() * (maxSize - minSize) + minSize,
+        speedX: (Math.random() - 0.5) * speed,
+        speedY: (Math.random() - 0.5) * speed,
+        opacity: Math.random() * 0.5 + 0.3
+      }));
+
+      setParticles(initialParticles);
+
+      // Handle window resize
+      const handleResize = () => {
+        setDimensions({
+          width: window.innerWidth,
+          height: window.innerHeight
+        });
+      };
+
+      window.addEventListener('resize', handleResize);
+      
+      // Handle mouse movement
+      const handleMouseMove = (e: { clientX: any; clientY: any; }) => {
+        setMousePosition({ x: e.clientX, y: e.clientY });
+      };
+      
+      window.addEventListener('mousemove', handleMouseMove);
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        window.removeEventListener('mousemove', handleMouseMove);
+      };
+    }
+  }, [count, minSize, maxSize, speed]);
+
+  // Animation effect
+  useEffect(() => {
+    if (particles.length === 0 || !dimensions.width) return;
+
+    const animateParticles = () => {
+      setParticles(currentParticles => 
+        currentParticles.map(particle => {
+          // Update position based on speed
+          let newX = particle.x + particle.speedX;
+          let newY = particle.y + particle.speedY;
+          let newSpeedX = particle.speedX;
+          let newSpeedY = particle.speedY;
+
+          // Handle boundary collision
+          if (newX > dimensions.width || newX < 0) {
+            newSpeedX = -newSpeedX;
+            newX = newX > dimensions.width ? dimensions.width : 0;
+          }
+
+          if (newY > dimensions.height || newY < 0) {
+            newSpeedY = -newSpeedY;
+            newY = newY > dimensions.height ? dimensions.height : 0;
+          }
+
+          return {
+            ...particle,
+            x: newX,
+            y: newY,
+            speedX: newSpeedX,
+            speedY: newSpeedY
+          };
+        })
+      );
+    };
+
+    const animationId = requestAnimationFrame(animateParticles);
+    const interval = setInterval(animateParticles, 30);
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      clearInterval(interval);
+    };
+  }, [particles, dimensions]);
+
+  // Draw connections between nearby particles
+  const drawConnections = () => {
+    const maxDistance = 150; // Maximum distance for connection
+    const connections = [];
+    
+    // Check each particle pair
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const p1 = particles[i];
+        const p2 = particles[j];
+        
+        // Calculate distance
+        const dx = p1.x - p2.x;
+        const dy = p1.y - p2.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < maxDistance) {
+          // Calculate opacity based on distance (more transparent as distance increases)
+          const opacity = 1 - distance / maxDistance;
+          
+          connections.push({
+            x1: p1.x,
+            y1: p1.y,
+            x2: p2.x,
+            y2: p2.y,
+            opacity: opacity * 0.2 // Adjust for visibility
+          });
+        }
+      }
+      
+      // Connect to mouse if nearby
+      if (mousePosition.x && mousePosition.y) {
+        const p1 = particles[i]; // Ensure p1 is defined
+        const dx = p1.x - mousePosition.x;
+        const dy = p1.y - mousePosition.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < maxDistance * 1.5) {
+          const opacity = 1 - distance / (maxDistance * 1.5);
+          
+          connections.push({
+            x1: p1.x,
+            y1: p1.y,
+            x2: mousePosition.x,
+            y2: mousePosition.y,
+            opacity: opacity * 0.3
+          });
+        }
+      }
+    }
+    
+    return connections;
+  };
+  
+  const connections = drawConnections();
+
+  return (
+    <div 
+      className="fixed inset-0 pointer-events-none" 
+      style={{ backgroundColor: backgroundColor, zIndex: -1 }}
+    >
+      {particles.map((particle, index) => (
+        <div
+          key={`particle-${index}`}
+          className="absolute rounded-full"
+          style={{
+            left: `${particle.x}px`,
+            top: `${particle.y}px`,
+            width: `${particle.radius}px`,
+            height: `${particle.radius}px`,
+            backgroundColor: color,
+            opacity: particle.opacity,
+          }}
+        />
+      ))}
+      
+      <svg className="fixed inset-0 w-full h-full pointer-events-none" style={{ zIndex: -1 }}>
+        {connections.map((connection, index) => (
+          <line
+            key={`connection-${index}`}
+            x1={connection.x1}
+            y1={connection.y1}
+            x2={connection.x2}
+            y2={connection.y2}
+            stroke={linkColor}
+            strokeWidth="1"
+            opacity={connection.opacity}
+          />
+        ))}
+      </svg>
+    </div>
+  );
+};
+
+export default ParticleBackground;
+```
+
+### components/settings/plansTab.tsx (React TypeScript, 209 líneas)
+
+```react typescript
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Check, Sparkles, Crown, ArrowRight, Brain, LineChart as ChartLineUp, Bot, Lock } from 'lucide-react';
+
+const UpgradePlans = () => {
+  const [hoveredPlan, setHoveredPlan] = useState<string | null>(null);
+
+  const plans = [
+    {
+      name: "Plan Básico",
+      price: "Gratis",
+      description: "Comienza tu viaje en el mundo crypto",
+      features: [
+        "Análisis básico de mercado",
+        "3 consultas diarias al AI Bot",
+        "Alertas de precios básicas",
+        "Acceso a información pública",
+      ],
+      limitations: [
+        "Sin análisis técnico avanzado",
+        "Sin señales premium",
+        "Sin estrategias personalizadas",
+      ],
+      icon: Bot,
+      color: "from-gray-500 to-gray-600",
+      buttonText: "Plan Actual",
+      recommended: false
+    },
+    {
+      name: "Plan Pro",
+      price: "$29.99",
+      period: "/mes",
+      description: "Para traders serios que buscan ventaja competitiva",
+      features: [
+        "Análisis técnico avanzado",
+        "Consultas ilimitadas al AI Bot",
+        "Señales de trading en tiempo real",
+        "Alertas personalizadas",
+        "Análisis de sentimiento del mercado",
+        "Estrategias de trading sugeridas",
+      ],
+      icon: ChartLineUp,
+      color: "from-purple-500 to-purple-600",
+      buttonText: "Actualizar a Pro",
+      recommended: true
+    },
+    {
+      name: "Plan Enterprise",
+      price: "$99.99",
+      period: "/mes",
+      description: "Máximo poder de análisis y predicción",
+      features: [
+        "Todo lo incluido en Pro",
+        "AI personalizada a tu estrategia",
+        "Análisis predictivo avanzado",
+        "Estrategias automatizadas",
+        "Reportes personalizados diarios",
+        "Acceso prioritario a nuevas features",
+        "Soporte 24/7 personalizado"
+      ],
+      icon: Crown,
+      color: "from-amber-500 to-amber-600",
+      buttonText: "Contactar Ventas",
+      recommended: false
+    }
+  ];
+
+  const cardVariants = {
+    hover: {
+      scale: 1.05,
+      transition: {
+        duration: 0.2
+      }
+    }
+  };
+
+  const checkVariants = {
+    initial: { scale: 0 },
+    animate: { scale: 1 },
+    transition: { type: "spring", stiffness: 300, damping: 20 }
+  };
+
+  return (
+    <div className="min-h-screen bg-black text-white p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2 className="text-4xl font-bold mb-1 bg-gradient-to-r from-purple-400 to-amber-400 bg-clip-text text-transparent">
+              Potencia tu Trading con IA
+            </h2>
+          </motion.div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {plans.map((plan) => {
+            const PlanIcon = plan.icon;
+            return (
+              <motion.div
+                key={plan.name}
+                className={`relative rounded-2xl bg-gradient-to-b ${
+                  hoveredPlan === plan.name ? 'from-purple-900/50 to-black/50' : 'from-gray-900/50 to-black/50'
+                } p-8 border border-purple-500/20 backdrop-blur-xl
+                ${plan.recommended ? 'ring-2 ring-purple-500 shadow-lg shadow-purple-500/20' : ''}
+                `}
+                variants={cardVariants}
+                whileHover="hover"
+                onHoverStart={() => setHoveredPlan(plan.name)}
+                onHoverEnd={() => setHoveredPlan(null)}
+              >
+                {plan.recommended && (
+                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                    <span className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
+                      <Sparkles className="w-4 h-4" />
+                      Recomendado
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 mb-6">
+                  <div className={`p-3 rounded-lg bg-gradient-to-r ${plan.color}`}>
+                    <PlanIcon className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold">{plan.name}</h3>
+                </div>
+
+                <div className="mb-6">
+                  <div className="flex items-end gap-2 mb-2">
+                    <span className="text-4xl font-bold">{plan.price}</span>
+                    {plan.period && (
+                      <span className="text-gray-400 mb-1">{plan.period}</span>
+                    )}
+                  </div>
+                  <p className="text-gray-400">{plan.description}</p>
+                </div>
+
+                <div className="space-y-4 mb-8">
+                  {plan.features.map((feature, index) => (
+                    <motion.div
+                      key={index}
+                      className="flex items-center gap-3"
+                      initial="initial"
+                      animate="animate"
+                      variants={checkVariants}
+                    >
+                      <div className="flex-shrink-0">
+                        <Check className="w-5 h-5 text-green-500" />
+                      </div>
+                      <span className="text-gray-300">{feature}</span>
+                    </motion.div>
+                  ))}
+                  
+                  {plan.limitations && plan.limitations.map((limitation, index) => (
+                    <motion.div
+                      key={`limitation-${index}`}
+                      className="flex items-center gap-3"
+                      initial="initial"
+                      animate="animate"
+                      variants={checkVariants}
+                    >
+                      <div className="flex-shrink-0">
+                        <Lock className="w-5 h-5 text-gray-500" />
+                      </div>
+                      <span className="text-gray-500">{limitation}</span>
+                    </motion.div>
+                  ))}
+                </div>
+
+                <motion.button
+                  className={`w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2
+                    ${
+                      plan.recommended
+                        ? 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
+                        : plan.name === "Plan Básico"
+                        ? 'bg-gray-800 text-gray-300'
+                        : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700'
+                    }
+                    transition-all duration-200 shadow-lg hover:shadow-purple-500/25`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {plan.buttonText}
+                  <ArrowRight className="w-5 h-5" />
+                </motion.button>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.6 }}
+          className="mt-16 text-center"
+        >
+          <p className="text-gray-400 flex items-center justify-center gap-2">
+            <Brain className="w-5 h-5 text-purple-400" />
+            Potenciado por IA avanzada para análisis de mercados crypto
+          </p>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+export default UpgradePlans;
+```
+
+### components/dashboard/AppSidebar.tsx (React TypeScript, 146 líneas)
+
+```react typescript
+import { Link } from "react-router-dom";
+import { Home, MessageSquare, BookOpen, Crown, Menu, X } from "lucide-react";
+import { Sidebar } from "@/components/ui/sidebar";
+import { useAuth } from "@/context/auth-context";
+import { useState, useEffect } from "react";
+
+export function AppSidebar() {
+  const { userData, isLoading } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Cerrar menú móvil cuando la pantalla se redimensiona a tamaño desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Prevenir scroll cuando el menú móvil está abierto
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isMobileMenuOpen]);
+
+  if (isLoading || !userData?.id) {
+    return <p>Cargando...</p>;
+  }
+
+  const menuItems = [
+    { icon: Home, label: "Home", path: "/app/home" },
+    { icon: MessageSquare, label: "Chat", path: `/app/chat/new` },
+    { icon: BookOpen, label: "Docs", path: "https://docs.delphos.dev/" },
+  ];
+
+  // Botón de hamburguesa para móvil
+  const MobileMenuButton = () => (
+    <button 
+      className="md:hidden fixed top-2 left-4 z-50 p-2 rounded-md bg-[hsl(252deg_100%_71%/90%)] text-white"
+      onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+      // Ajuste específico para alinear con el header
+    >
+      {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+    </button>
+  );
+
+  // Overlay que aparece detrás del menú móvil
+  const MobileOverlay = () => (
+    <div 
+      className={`fixed inset-0 bg-black/60 z-30 md:hidden ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'} transition-opacity duration-300`}
+      onClick={() => setIsMobileMenuOpen(false)}
+      style={{ top: "56px" }} // Comenzar debajo del header
+    />
+  );
+
+  return (
+    <>
+      <MobileMenuButton />
+      <MobileOverlay />
+      
+      {/* Sidebar para escritorio (md y superiores) */}
+      <Sidebar className="hidden border-r bg-background md:block sticky top-0 h-screen">
+        <div className="flex h-full flex-col">
+          {/* Elementos del menú principal - área scrollable */}
+          <div className="flex-1 overflow-y-auto py-4">
+            <nav className="flex flex-col gap-1 px-2">
+              {menuItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground group"
+                >
+                  <div className="p-1.5 rounded-md bg-[hsl(252deg_100%_71%/20%)] text-[hsl(252deg_100%_71%/90%)] group-hover:bg-[hsl(252deg_100%_71%/90%)] group-hover:text-white transition-colors">
+                    <item.icon className="h-4 w-4" />
+                  </div>
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </nav>
+          </div>
+
+          {/* Enlace a Upgrade Plan - fijo en la parte inferior */}
+          <div className="border-t border-border px-2 py-4 sticky bottom-0 bg-background">
+            <Link
+              to="/app/upgrade-plan"
+              className="flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-white bg-[hsl(252deg_100%_71%/90%)] transition-all hover:opacity-90 shadow-md"
+            >
+              <Crown className="h-4 w-4" />
+              <span className="font-medium">Mejorar Plan</span>
+            </Link>
+          </div>
+        </div>
+      </Sidebar>
+
+      {/* Sidebar para móvil (slide-in desde la izquierda) */}
+      <div 
+        className={`fixed inset-y-0 left-0 w-64 bg-background border-r border-border transform ${
+          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        } transition-transform duration-300 ease-in-out z-40 md:hidden`}
+        style={{ top: "56px", height: "calc(100% - 56px)" }} // Ajustado para comenzar después del header
+      >
+        <div className="flex h-full flex-col"> {/* Eliminado padding top */}
+          {/* Elementos del menú principal - área scrollable */}
+          <div className="flex-1 overflow-y-auto py-4">
+            <nav className="flex flex-col gap-1 px-2">
+              {menuItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground group"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <div className="p-1.5 rounded-md bg-[hsl(252deg_100%_71%/20%)] text-[hsl(252deg_100%_71%/90%)] group-hover:bg-[hsl(252deg_100%_71%/90%)] group-hover:text-white transition-colors">
+                    <item.icon className="h-4 w-4" />
+                  </div>
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </nav>
+          </div>
+
+          {/* Enlace a Upgrade Plan - fijo en la parte inferior */}
+          <div className="border-t border-border px-2 py-4 sticky bottom-0 bg-background">
+            <Link
+              to="/app/upgrade-plan"
+              className="flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-white bg-[hsl(252deg_100%_71%/90%)] transition-all hover:opacity-90 shadow-md"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              <Crown className="h-4 w-4" />
+              <span className="font-medium">Mejorar Plan</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+```
+
+### components/auth/login/useLogin.tsx (React TypeScript, 126 líneas)
+
+```react typescript
+import { useState, useEffect, useCallback } from "react";
+import { toast } from "react-toastify";
+import { useAuth } from "@/context/auth-context";
+import { useNavigate } from "react-router-dom";
+import { usePrivyAuth } from "@/hooks/usePrivyAuth";
+import { loginWithBackend, LoginResponse } from "../../../types/authServices";
+
+export const useLoginLogic = () => {
+  // State management
+  const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState(false);
+  
+  // Hooks
+  const { login, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const { privyLogin, authenticated, ready, user, getPrivyUserData,connectWallet } = usePrivyAuth();
+  // const { connectWallet } = usePrivyAuth();
+
+
+  // Handle successful login response
+  const processLoginResponse = useCallback((response: LoginResponse) => {
+    if (response.success && response.token) {
+      console.log("Login successful, saving token and redirecting");
+
+      // Save isNewUser flag if applicable
+      if (response.isNewUser) {
+        console.log("New user detected, setting flag to show modal");
+        localStorage.setItem("isNewUser", "true");
+      }
+
+      // Call login function with token
+      login(response.token);
+      toast.success("Login successful!");
+      return true;
+    }
+    return false;
+  }, [login]);
+
+  // Backend login logic
+  const handleLoginWithBackend = useCallback(async () => {
+    const userData = getPrivyUserData();
+    if (!userData) return false;
+
+    try {
+      console.log("Sending login request to backend with:", userData);
+      const response = await loginWithBackend(userData);
+      return processLoginResponse(response);
+    } catch (error) {
+      console.error("Error during login:", error);
+      return false;
+    }
+  }, [getPrivyUserData, processLoginResponse]);
+
+  // Redirect to home if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && !loginError) {
+      console.log("User already authenticated, redirecting to home");
+      navigate("/app/home", { replace: true });
+    }
+  }, [isAuthenticated, navigate, loginError]);
+
+  // Handle Privy authentication
+  useEffect(() => {
+    let mounted = true;
+
+    const handleAuthentication = async () => {
+      // Only proceed if all conditions are met
+      if (!(authenticated && user && ready) || isLoading || !mounted) return;
+
+      console.log("Privy authenticated, starting backend login process");
+      setIsLoading(true);
+      setLoginError(false);
+      
+      try {
+        const success = await handleLoginWithBackend();
+        if (!success && mounted) {
+          setLoginError(true);
+          toast.error("Login error");
+        }
+      } catch (error) {
+        if (mounted) {
+          setLoginError(true);
+          toast.error("Login failed");
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    handleAuthentication();
+
+    return () => {
+      mounted = false;
+    };
+  }, [authenticated, user, ready, isLoading, handleLoginWithBackend]);
+
+  // Wallet connection handler
+  const handleConnectWallet = async () => {
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    setLoginError(false);
+
+    try {
+      console.log("Starting Privy login");
+      await connectWallet()
+      await privyLogin();
+      // The useEffect will handle authentication when Privy is ready
+    } catch (error) {
+      toast.error("Failed to connect wallet");
+      console.error("Wallet connection error:", error);
+      setLoginError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return {
+    isLoading,
+    loginError,
+    ready,
+    handleConnectWallet
+  };
+};
+```
+
+### components/ui/useMenu.tsx (React TypeScript, 139 líneas)
+
+```react typescript
+import { useState, useRef, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/auth-context";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Settings, LogOut, Crown, LogIn } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+const UserMenu = () => {
+  const { userData, logout, isAuthenticated } = useAuth();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const avatarRef = useRef<HTMLDivElement | null>(null);
+
+  // Cerrar el menú cuando se hace clic fuera - MOVIDO ANTES DEL RETORNO CONDICIONAL
+  useEffect(() => {
+    // Solo agregar listeners si el menú está abierto y el usuario está autenticado
+    if (!isMenuOpen || !isAuthenticated) return;
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node) &&
+        avatarRef.current &&
+        !avatarRef.current.contains(event.target as Node)
+      ) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isMenuOpen, isAuthenticated]);
+
+  // Si el usuario no está autenticado, mostrar botón de login
+  if (!isAuthenticated || !userData) {
+    return (
+      <Button
+        variant="ghost"
+        className="text-sm flex items-center gap-2 py-2 px-3 hover:bg-[hsl(252deg_100%_71%/10%)]"
+        onClick={() => navigate("/login")}
+      >
+        <LogIn className="h-4 w-4" />
+        <span>Login</span>
+      </Button>
+    );
+  }
+
+  // Avatar fallback (primera letra del nombre)
+  const getInitial = () => {
+    if (userData?.fullName) {
+      return userData.fullName.charAt(0).toUpperCase();
+    }
+    return "U"; // Default para "Usuario"
+  };
+
+  return (
+    <div className="relative">
+      <div
+        ref={avatarRef}
+        onClick={() => setIsMenuOpen(!isMenuOpen)}
+        className="cursor-pointer"
+      >
+        <Avatar className="h-9 w-9 border-2 border-[hsl(252deg_100%_71%/90%)] hover:border-[hsl(252deg_100%_71%/70%)] transition-all">
+          <AvatarImage
+            src={userData?.imageUrl}
+            alt={userData?.fullName || "Usuario"}
+          />
+          <AvatarFallback className="bg-[hsl(252deg_100%_71%/90%)] text-white">
+            {getInitial()}
+          </AvatarFallback>
+        </Avatar>
+      </div>
+
+      {isMenuOpen && userData && (
+        <div
+          ref={menuRef}
+          className="absolute right-0 mt-2 w-64 rounded-lg shadow-lg bg-card border border-border focus:outline-none z-50 overflow-hidden"
+        >
+          <div className="bg-[hsl(252deg_100%_71%/10%)] px-4 py-3">
+            <p className="text-sm font-medium text-foreground">
+              {userData?.fullName || "Usuario"}
+            </p>
+            <p className="text-xs text-muted-foreground truncate mt-1">
+              {userData?.email || ""}
+            </p>
+          </div>
+
+          <div className="border-t border-border"></div>
+
+          <div className="py-1">
+            <Link
+              to="/app/settings"
+              className="flex items-center px-4 py-3 text-sm text-foreground hover:bg-accent transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <div className="p-1.5 rounded-md bg-[hsl(252deg_100%_71%/90%)] text-white mr-3">
+                <Settings className="h-4 w-4" />
+              </div>
+              <span>Ajustes</span>
+            </Link>
+
+            <Link
+              to="/app/upgrade-plan"
+              className="flex items-center px-4 py-3 text-sm text-foreground hover:bg-accent transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <div className="p-1.5 rounded-md bg-[hsl(252deg_100%_71%/90%)] text-white mr-3">
+                <Crown className="h-4 w-4" />
+              </div>
+              <span>Mejorar Plan</span>
+            </Link>
+          </div>
+
+          <div className="border-t border-border"></div>
+
+          <div className="py-1">
+            <button
+              onClick={() => {
+                setIsMenuOpen(false);
+                logout();
+              }}
+              className="flex w-full items-center px-4 py-3 text-sm text-foreground hover:bg-red-100/50 dark:hover:bg-red-900/20 hover:text-red-600 transition-colors"
+            >
+              <div className="p-1.5 rounded-md bg-red-500 text-white mr-3">
+                <LogOut className="h-4 w-4" />
+              </div>
+              <span>Cerrar sesión</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default UserMenu;
+```
+
+### styles/globals.css (CSS, 228 líneas)
+
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+ 
+@layer base {
+  :root {
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+ 
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+ 
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+ 
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+ 
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+ 
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+ 
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 48 96% 89%;
+
+    --success: 142 72% 29%;
+    --success-foreground: 144 61% 89%;
+
+    --pending: 215 90% 48%;
+    --pending-foreground: 210 40% 98%;
+
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    --color-1: 215 90% 48%;
+    --color-2: 142 72% 29%;
+    --color-3: 38 92% 50%;
+    --color-4: 0 84% 60%;
+    --color-5: 262 83% 58%;
+
+    --favorite: 346 77% 49%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-primary: 222.2 47.4% 11.2%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96.1%;
+    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+  }
+ 
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+ 
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+ 
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+ 
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+ 
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+ 
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+ 
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+ 
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --warning: 48 96% 89%;
+    --warning-foreground: 38 92% 50%;
+
+    --success: 144 61% 89%;
+    --success-foreground: 142 72% 29%;
+
+    --pending: 210 40% 98%;
+    --pending-foreground: 215 90% 48%;
+ 
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    --color-1: 215 90% 48%;
+    --color-2: 142 72% 29%;
+    --color-3: 38 92% 50%;
+    --color-4: 0 84% 60%;
+    --color-5: 262 83% 58%;
+
+    --favorite: 346 77% 49%;
+
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 210 40% 98%;
+    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer utilities {
+  /* Clases para ocultar la barra de desplazamiento pero mantener la funcionalidad */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+
+  /* Estilos para el contenido principal con sidebar fijo */
+  .main-content-with-sidebar {
+    margin-left: 250px; /* Ajusta al ancho de tu sidebar */
+  }
+  
+  @media (max-width: 768px) {
+    .main-content-with-sidebar {
+      margin-left: 0;
+    }
+  }
+
+  .animated-border {
+    --border-width: 2px;
+    --shiny-width: 50%;
+    background-image: linear-gradient(
+      var(--angle),
+      var(--border-color) 0%,
+      var(--border-color) 50%,
+      transparent 50%,
+      transparent 100%
+    );
+    animation: rotate var(--duration) linear infinite;
+  }
+
+  .shiny-text {
+    --shiny-width: 50%;
+    background-image: linear-gradient(
+      to right,
+      transparent 0%,
+      rgba(255, 255, 255, 0.4) 50%,
+      transparent 100%
+    );
+    background-repeat: no-repeat;
+  }
+
+  .shimmer {
+    --speed: 1.5s;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.4) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+  }
+}
+
+/* Permitir scroll global en la aplicación */
+html, body, #root {
+  height: 100%;
+  overflow: auto; /* Cambiado de 'hidden' a 'auto' para permitir scroll global */
+}
+
+/* Estilizar scrollbar global */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(140, 140, 140, 0.5);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 140, 140, 0.7);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+```
+
+### components/ui/language-switch.tsx (React TypeScript, 135 líneas)
+
+```react typescript
+"use client";
+
+import { useEffect, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
+
+const languages = [
+  {
+    code: "en",
+    name: "English",
+    flag: "https://flagcdn.com/us.svg",
+  },
+  {
+    code: "es",
+    name: "Español",
+    flag: "https://flagcdn.com/es.svg",
+  },
+  // {
+  //   code: "fr",
+  //   name: "Français",
+  //   flag: "https://flagcdn.com/fr.svg",
+  // },
+  // {
+  //   code: "de",
+  //   name: "Deutsch",
+  //   flag: "https://flagcdn.com/de.svg",
+  // },
+  // {
+  //   code: "ar",
+  //   name: "العربية",
+  //   flag: "https://flagcdn.com/sa.svg",
+  // },
+  // {
+  //   code: "hi",
+  //   name: "हिन्दी",
+  //   flag: "https://flagcdn.com/in.svg",
+  // },
+  // {
+  //   code: "zh",
+  //   name: "中文",
+  //   flag: "https://flagcdn.com/cn.svg",
+  // },
+];
+
+const LanguageSwitcher = () => {
+  const { i18n } = useTranslation();
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState(() => {
+    // Intentamos obtener el idioma actual de i18n
+    const currentLang = i18n.language || 'en';
+    // Buscamos el idioma en nuestra lista de idiomas soportados
+    const matchingLanguage = languages.find(
+      (lang) => lang.code === currentLang || currentLang.startsWith(lang.code)
+    );
+    // Si no encontramos coincidencia, usamos el primer idioma de la lista
+    return matchingLanguage || languages[0];
+  });
+
+  // Efecto para mantener sincronizado el idioma seleccionado con i18n
+  useEffect(() => {
+    const currentLang = i18n.language;
+    const matchingLanguage = languages.find(
+      (lang) => lang.code === currentLang || currentLang.startsWith(lang.code)
+    );
+    
+    if (matchingLanguage && matchingLanguage.code !== selectedLanguage.code) {
+      setSelectedLanguage(matchingLanguage);
+    }
+  }, [i18n.language, selectedLanguage.code]);
+
+  const handleLanguageChange = (language: { code: string; name: string; flag: string; }) => {
+    setSelectedLanguage(language);
+    setIsOpen(false);
+    i18n.changeLanguage(language.code);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm backdrop-blur-sm transition-colors hover:bg-white/10"
+      >
+        <div className="relative h-5 w-7 overflow-hidden rounded">
+          <img
+            src={selectedLanguage.flag}
+            alt={selectedLanguage.name}
+            className="object-cover"
+          />
+        </div>
+        <span className="hidden sm:inline">{selectedLanguage.name}</span>
+        <ChevronDown
+          className={`h-4 w-4 transition-transform ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.2 }}
+            className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-xl border border-white/10 bg-black/60 backdrop-blur-xl"
+          >
+            <div className="max-h-[280px] overflow-y-auto py-1">
+              {languages.map((language) => (
+                <button
+                  key={language.code}
+                  onClick={() => handleLanguageChange(language)}
+                  className={`flex w-full items-center gap-3 px-4 py-2 text-sm transition-colors hover:bg-white/10 ${
+                    selectedLanguage.code === language.code ? "bg-white/5" : ""
+                  }`}
+                >
+                  <div className="relative h-5 w-7 overflow-hidden rounded">
+                    <img
+                      src={language.flag}
+                      alt={language.name}
+                      className="object-cover"
+                    />
+                  </div>
+                  <span>{language.name}</span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export default LanguageSwitcher;
+```
+
+## 4. ARCHIVOS SECUNDARIOS (VECTORIZADOS)
+
+Los siguientes 60 archivos están representados mediante vectores semánticos.
+- **App.css** (CSS, 1 líneas)
+  Vector: [0.0, 0.0, 0.0, 0.0, 0.0, ...]
+
+- **App.tsx** (React TypeScript, 59 líneas)
+  Vector: [0.1402924139958988, 0.3489483677690844, 0.04531997444945331, 0.09017640283015843, 0.06776261417529167, ...]
+
+- **api/authEmail.tsx** (React TypeScript, 13 líneas)
+  Vector: [0.09141774223405244, 0.29689132134438023, -0.09437249073852214, -0.35604805613207186, -0.18345967662253565, ...]
+
+- **assets/react.svg** (SVG, 1 líneas)
+  Vector: [0.04082175244035328, -0.008103682982346162, -0.012194549055421127, -0.0025650246929761955, 0.012800207462221925, ...]
+
+- **components/ComingSoonPage.tsx** (React TypeScript, 17 líneas)
+  Vector: [0.4598489818135515, 0.05057632850511182, -0.047467165078700704, 0.18047607208679925, -0.0283859472679991, ...]
+
+- **components/Layout.tsx** (React TypeScript, 16 líneas)
+  Vector: [0.15675432805042655, 0.2102310522535835, -0.014945889635880968, 0.19535530876177026, 0.0015336573160640186, ...]
+
+- **components/PageLoading.tsx** (React TypeScript, 9 líneas)
+  Vector: [0.5310000400477861, -0.13862249281766137, -0.1292779430205543, 0.1598771025588063, -0.14342905928957356, ...]
+
+- **components/account/AccountContent.tsx** (React TypeScript, 42 líneas)
+  Vector: [0.7247467215272011, -0.30940227408138327, -0.12833384329169226, 0.04156517913978209, -0.13036620482522915, ...]
+
+- **components/auth/AuthLayout.tsx** (React TypeScript, 75 líneas)
+  Vector: [0.6914357739887788, -0.21120674567369754, -0.06695677185257132, -0.00624921361474918, 0.005030562603778682, ...]
+
+- **components/auth/EmailInfo.tsx** (React TypeScript, 33 líneas)
+  Vector: [0.5637275478491353, -0.012890294837689059, 0.008039896016911966, -0.19935967411110384, 0.5880771665146752, ...]
+
+- **components/auth/Recovery.tsx** (React TypeScript, 86 líneas)
+  Vector: [0.5278468735666002, 0.07002205836952097, 0.0053472913702585535, -0.16029804433719655, 0.39764367395590716, ...]
+
+- **components/auth/RecoveryInfo.tsx** (React TypeScript, 34 líneas)
+  Vector: [0.5642625218439477, 0.010372712253813404, -0.002814874751160649, -0.2083487842878495, 0.5950993664048482, ...]
+
+- **components/auth/login/Login.tsx** (React TypeScript, 68 líneas)
+  Vector: [0.6641826934774726, -0.11245537877344379, -0.034649712830812814, -0.11367940242795918, 0.3018366454884654, ...]
+
+- **components/chat/ChatSkeleton.tsx** (React TypeScript, 13 líneas)
+  Vector: [0.6212599561223231, -0.24011162016722412, -0.1822994235467175, 0.06661258761607974, -0.19009574188184336, ...]
+
+- **components/chat/redirectToChat.tsx** (React TypeScript, 10 líneas)
+  Vector: [0.1674005993105011, 0.4323250231181799, -0.05600844161827652, -0.07911874865133371, -0.0009830239790173867, ...]
+
+- **components/headerLayout.tsx** (React TypeScript, 24 líneas)
+  Vector: [0.4367243368568279, -0.04918606372335077, -0.16037280359668313, 0.1294163726351344, -0.17865589136822732, ...]
+
+- **components/refresh/RefreshContent.tsx** (React TypeScript, 26 líneas)
+  Vector: [0.43154526462174686, -0.1790915989642253, -0.08815266369755664, 0.07669756650744859, -0.08484538965566876, ...]
+
+- **components/saved-prompts/SavedPromptsContent.tsx** (React TypeScript, 28 líneas)
+  Vector: [0.5261981103621939, -0.14376164629243685, -0.12282516441323438, 0.021555270868000426, -0.11239593355061021, ...]
+
+- **components/settings/securityTab.tsx** (React TypeScript, 112 líneas)
+  Vector: [0.7120325323031448, -0.19087494117897089, -0.08904013439704848, -0.021670552383547922, -0.012680316981777904, ...]
+
+- **components/settings/walletTab.tsx** (React TypeScript, 7 líneas)
+  Vector: [0.20834264305991257, -0.04445096148042278, -0.13432426417642054, 0.048502793782973605, -0.11384132589669005, ...]
+
+- **components/ui/avatar.tsx** (React TypeScript, 48 líneas)
+  Vector: [0.2412355220960794, 0.06913266628142095, 0.4601981669219479, 0.026626215739608772, -0.21219986756591422, ...]
+
+- **components/ui/badge.tsx** (React TypeScript, 36 líneas)
+  Vector: [0.3594856203657068, 0.04418941906209361, 0.48719803483648527, -0.05831240209112533, 0.03788507136312193, ...]
+
+- **components/ui/button.tsx** (React TypeScript, 57 líneas)
+  Vector: [0.3947005413143506, 0.05383472142123715, 0.5431219821253029, -0.09087778435637495, 0.07367520587593784, ...]
+
+- **components/ui/card.tsx** (React TypeScript, 79 líneas)
+  Vector: [0.3571772592289413, -0.010603748436609908, 0.4678770836364004, 6.728538019508401e-06, -0.22467480711974375, ...]
+
+- **components/ui/header.tsx** (React TypeScript, 30 líneas)
+  Vector: [0.6096853080849908, -0.1396763160525556, -0.16425715898568496, 0.11088662681970439, -0.1024284361836496, ...]
+
+- **components/ui/input.tsx** (React TypeScript, 24 líneas)
+  Vector: [0.32196394950384266, 0.04889287691568776, 0.5967172615267712, -0.045183251044629, -0.10825716394154372, ...]
+
+- **components/ui/label.tsx** (React TypeScript, 20 líneas)
+  Vector: [0.2407378553204721, 0.11695277826987921, 0.4852114246808655, 0.03277837315499001, -0.16295021389013106, ...]
+
+- **components/ui/select.tsx** (React TypeScript, 1 líneas)
+  Vector: [0.0, 0.0, 0.0, 0.0, 0.0, ...]
+
+- **components/ui/side.tsx** (React TypeScript, 96 líneas)
+  Vector: [0.5788351171557801, 0.0837146670566529, -0.12459392420355636, -0.24091396318498937, -0.10626502938915164, ...]
+
+- **components/ui/sidebar.tsx** (React TypeScript, 81 líneas)
+  Vector: [0.28560864234606587, 0.11620701729230268, -0.08133681530869877, -0.03575828560019786, -0.17658936028186276, ...]
+
+- **components/ui/sonner.tsx** (React TypeScript, 31 líneas)
+  Vector: [0.13696895411062085, 0.07376222466093194, 0.1347496222147485, -0.026781833011841956, 0.08812861859071316, ...]
+
+- **components/ui/tabs.tsx** (React TypeScript, 58 líneas)
+  Vector: [0.2825030151144413, 0.07056793407214319, 0.6220555372728349, -0.044022387878759284, -0.20018165978572608, ...]
+
+- **context/private-router.tsx** (React TypeScript, 26 líneas)
+  Vector: [0.35574809829166404, 0.15133422530092033, -0.17156844592204773, -0.012268553424183364, -0.030799494779707292, ...]
+
+- **hooks/useChatStorage.tsx** (React TypeScript, 69 líneas)
+  Vector: [0.12153043353134181, 0.3144405555997874, -0.14918952818115186, -0.299510537788544, -0.18674933595688548, ...]
+
+- **hooks/usePrivyAuth.tsx** (React TypeScript, 111 líneas)
+  Vector: [0.12830035939559697, 0.35358390787517774, -0.10647885333882573, -0.28975111601622705, -0.039120931045735455, ...]
+
+- **index.css** (CSS, 163 líneas)
+  Vector: [0.08916553715491568, -0.003071905643680526, 0.11746811334599189, -0.025574038905570216, 0.04738469230872121, ...]
+
+- **lib/i18n.ts** (TypeScript, 24 líneas)
+  Vector: [0.09228176982355596, 0.3264790630419208, 0.03054171347855008, 0.18828163802451026, 0.1684588766549285, ...]
+
+- **lib/utils.ts** (TypeScript, 36 líneas)
+  Vector: [0.0809771420530866, 0.21830446936556092, -0.05784429570312522, -0.15205545985957034, -0.1207045732418845, ...]
+
+- **locales/en.ts** (TypeScript, 5 líneas)
+  Vector: [0.11908506343908193, 0.15215042601459164, 0.036818821099447376, -0.11555346070979035, 0.317132527584875, ...]
+
+- **locales/es.ts** (TypeScript, 5 líneas)
+  Vector: [0.04837536274184547, 0.19553723544282692, 0.007994791247934986, -0.08438005665418746, 0.25459015580556354, ...]
+
+- **locales/index.ts** (TypeScript, 2 líneas)
+  Vector: [0.07882839922781851, 0.2857728915510884, 0.003086622504008327, 0.062190900840401096, 0.21478020728397143, ...]
+
+- **main.tsx** (React TypeScript, 10 líneas)
+  Vector: [0.09739181352364959, 0.2633046283210574, 0.07540905376374882, 0.16626757355551924, 0.022596901959494826, ...]
+
+- **pages/Account/index.tsx** (React TypeScript, 15 líneas)
+  Vector: [0.5419258527443744, -0.15318645802848202, -0.1443070120796438, 0.19001560501500803, -0.14865516626225822, ...]
+
+- **pages/Chat/index.tsx** (React TypeScript, 33 líneas)
+  Vector: [0.18685235812146053, 0.3863611452118815, -0.1433077512787026, -0.08861804944459727, -0.09229150109572833, ...]
+
+- **pages/FAQ/index.tsx** (React TypeScript, 7 líneas)
+  Vector: [0.1319055208676979, 0.3588020307725766, -0.028749399109613796, 0.5079577549039788, -0.017435336078893745, ...]
+
+- **pages/Home/index.tsx** (React TypeScript, 5 líneas)
+  Vector: [0.07062498171626917, 0.1682987596683462, -0.0189126674784678, 0.13486310031788495, 0.0048860678452677785, ...]
+
+- **pages/Login/index.tsx** (React TypeScript, 28 líneas)
+  Vector: [0.10604554744546169, 0.34601122489484304, -0.0725048889367384, 0.2120420555015667, 0.12791825877527693, ...]
+
+- **pages/Memories/index.tsx** (React TypeScript, 7 líneas)
+  Vector: [0.1369145927630357, 0.3619936023618441, -0.027946615108909396, 0.5087165483791368, -0.0189259256133556, ...]
+
+- **pages/Refresh/index.tsx** (React TypeScript, 12 líneas)
+  Vector: [0.12984752805027508, 0.2285817325013521, -0.03435926152386963, 0.27721647281943596, -0.04153210321428355, ...]
+
+- **pages/SavedPrompts/index.tsx** (React TypeScript, 6 líneas)
+  Vector: [0.0933665916005844, 0.1936172587917618, -0.05173026360194805, 0.25321693531810713, -0.01625751549821867, ...]
+
+- **pages/Settings/index.tsx** (React TypeScript, 106 líneas)
+  Vector: [0.62795081603019, -0.08889160216429758, -0.09338637081649451, 0.06171251254560298, -0.11347804095340454, ...]
+
+- **pages/welcome/index.tsx** (React TypeScript, 81 líneas)
+  Vector: [0.24527205083054346, 0.16781509138683304, -0.13866377743875355, -0.06979022923200745, -0.042594304306243856, ...]
+
+- **providers/i18nProvider.tsx** (React TypeScript, 8 líneas)
+  Vector: [0.09654289418597041, 0.23845717507379552, 0.03247575116713392, 0.16432170550315323, 0.021964039055182186, ...]
+
+- **providers/theme-provider.tsx** (React TypeScript, 51 líneas)
+  Vector: [0.0734248614345626, 0.1767062597142251, 0.02824896980281488, -0.029432078377251654, -0.0484396215475163, ...]
+
+- **routes/index.tsx** (React TypeScript, 51 líneas)
+  Vector: [0.14277018435330785, 0.4385598579561753, -0.09842247317504513, 0.34157566721990584, 0.07717544103335351, ...]
+
+- **styles/phoneInputStyle.tsx** (React TypeScript, 85 líneas)
+  Vector: [0.08530630673656694, 0.023469170136664923, 0.11807985965963655, -0.03878714181967181, 0.05540865420169043, ...]
+
+- **types/authServices.tsx** (React TypeScript, 35 líneas)
+  Vector: [0.08637658523097215, 0.3489145847447447, -0.13061406265825223, -0.44495117654053595, -0.26263098013480096, ...]
+
+- **types/chat.tsx** (React TypeScript, 49 líneas)
+  Vector: [0.10210499685583636, 0.33481758731591466, -0.14759183482898638, -0.41674264665472827, -0.32770530716163593, ...]
+
+- **utils/chatUtils.tsx** (React TypeScript, 94 líneas)
+  Vector: [0.11607557522108197, 0.2880507890559749, -0.13641134552360518, -0.21822125192725478, -0.04850325131282584, ...]
+
+- **vite-env.d.ts** (TypeScript, 1 líneas)
+  Vector: [0.004341810609776429, 0.039863532745238, -0.004400994781736887, -0.020595564529780536, -0.031367519658164957, ...]
+
